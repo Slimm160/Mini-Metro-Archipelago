@@ -8,7 +8,7 @@ import json
 import os
 from BaseClasses import World, Region, Entrance, Item, Location, ItemClassification
 from Archipelago.worlds.generic.Rules import set_rule
-from Options import Range
+from Options import Range, Toggle
 
 MAPS = {
     "London": 1,
@@ -90,12 +90,18 @@ class MaxWeeks(Range):
     default = 9
 
 
+class DeathLink(Toggle):
+    """When enabled, losing a run kills all other DeathLink players, and their deaths end your current run."""
+    display_name = "Death Link"
+
+
 class MiniMetroOptions:
     """Options for Mini Metro world"""
     starting_maps: StartingMaps
     maps_to_complete: MapsToComplete
     target_week: TargetWeek
     max_weeks: MaxWeeks
+    death_link: DeathLink
 
 
 class MiniMetroItem(Item):
@@ -252,4 +258,5 @@ class MiniMetroWorld(World):
             "maps_to_complete": int(self.options.maps_to_complete.value),
             "target_week": int(self.options.target_week.value),
             "max_weeks": int(self.options.max_weeks.value),
+            "death_link": bool(self.options.death_link.value),
         }
