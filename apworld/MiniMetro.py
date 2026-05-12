@@ -3,12 +3,16 @@ Mini Metro World for Archipelago
 """
 
 from typing import List
-import random
+from dataclasses import dataclass
 import json
-import os
-from BaseClasses import World, Region, Entrance, Item, Location, ItemClassification
-from Archipelago.worlds.generic.Rules import set_rule
-from Options import Range, Toggle
+import pkgutil
+from BaseClasses import Region, Entrance, Item, Location, ItemClassification, MultiWorld
+from worlds.AutoWorld import World
+from worlds.generic.Rules import set_rule
+from Options import Range, DeathLink, PerGameCommonOptions
+
+_ITEM_NAME_TO_ID = json.loads(pkgutil.get_data(__name__, "data/items.json").decode())
+_LOCATION_NAME_TO_ID = json.loads(pkgutil.get_data(__name__, "data/locations.json").decode())
 
 MAPS = {
     "London": 1,
@@ -48,11 +52,11 @@ MAPS = {
 }
 
 ITEMS = {
-    "Budget Increase": ItemClassification.progression,
     "New Line - Unlock": ItemClassification.progression,
     "Interchange - Unlock": ItemClassification.progression,
     "Shinkansen - Unlock": ItemClassification.progression,
     "Tunnel/Bridge - Unlock": ItemClassification.progression,
+    "Budget Increase": ItemClassification.useful,
     "Extra Train": ItemClassification.useful,
     "Extra Carriage": ItemClassification.useful,
     "Extra Speed": ItemClassification.useful,
@@ -78,7 +82,7 @@ class TargetWeek(Range):
     """Target week level to complete"""
     display_name = "Target Week"
     range_start = 1
-    range_end = 50
+    range_end = 10
     default = 9
 
 
@@ -90,12 +94,8 @@ class MaxWeeks(Range):
     default = 9
 
 
-class DeathLink(Toggle):
-    """When enabled, losing a run kills all other DeathLink players, and their deaths end your current run."""
-    display_name = "Death Link"
-
-
-class MiniMetroOptions:
+@dataclass
+class MiniMetroOptions(PerGameCommonOptions):
     """Options for Mini Metro world"""
     starting_maps: StartingMaps
     maps_to_complete: MapsToComplete
@@ -119,31 +119,24 @@ class MiniMetroWorld(World):
     game = "Mini Metro"
     topology_present = True
     options_dataclass = MiniMetroOptions
-    
-    def __init__(self, multiworld: "MultiWorld", player: int):
+    item_name_to_id = _ITEM_NAME_TO_ID
+    location_name_to_id = _LOCATION_NAME_TO_ID
+
+    def __init__(self, multiworld: MultiWorld, player: int):
         super().__init__(multiworld, player)
         self.starting_maps: List[str] = []
         self.unlockable_maps: List[str] = []
-        # Load item and location data from JSON files
-        if not hasattr(self.__class__, '_items_loaded'):
-            data_path = os.path.join(os.path.dirname(__file__), "data")
-            with open(os.path.join(data_path, "items.json")) as f:
-                items_data = json.load(f)
-            with open(os.path.join(data_path, "locations.json")) as f:
-                locations_data = json.load(f)
-            self.__class__.item_name_to_id = items_data
-            self.__class__.location_name_to_id = locations_data
-            self.__class__._items_loaded = True
-    
-    def stage_assert_generate(cls, multiworld: "MultiWorld"):
+
+    @classmethod
+    def stage_assert_generate(cls, multiworld: MultiWorld):
         """Assert that the world is valid before generation"""
         pass
-    
+
     def generate_early(self):
         """Early generation step"""
         num_starting = min(int(self.options.starting_maps.value), len(MAPS))
         maps_list = list(MAPS.keys())
-        random.shuffle(maps_list)        
+        self.random.shuffle(maps_list)
         self.starting_maps = maps_list[:num_starting]
         self.unlockable_maps = maps_list[num_starting:]
     
@@ -200,7 +193,7 @@ class MiniMetroWorld(World):
         max_weeks = int(self.options.max_weeks.value)
         total_locations = len(available_maps) * max_weeks        
         remaining_slots = total_locations - len(items_to_create)
-        useful_item_names = ["Extra Train", "Extra Carriage", "Extra Speed"]
+        useful_item_names = ["Extra Train", "Extra Carriage", "Extra Speed", "Budget Increase"]
         for i in range(remaining_slots):
             useful_item = useful_item_names[i % len(useful_item_names)]
             items_to_create.append(MiniMetroItem(
@@ -243,11 +236,10 @@ class MiniMetroWorld(World):
             if location_name in self.location_name_to_id:
                 victory_locations.append(location_name)
         if victory_locations:
-            set_rule(
-                self.multiworld.completion_condition[self.player],
-                lambda state: sum(1 for loc in victory_locations 
-                    if state.can_reach_location(loc, self.player)) >= maps_to_beat
-            )
+            self.multiworld.completion_condition[self.player] = lambda state: sum(
+                1 for loc in victory_locations
+                if state.can_reach_location(loc, self.player)
+            ) >= maps_to_beat
     
     def fill_slot_data(self):
         """Return slot data"""

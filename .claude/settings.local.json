@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(rm -rf \"c:/ProgramData/Archipelago/Mini Metro Archipelago/_apworld_build\")"
+    ],
+    "additionalDirectories": [
+      "c:\\ProgramData\\Archipelago\\Mini Metro Archipelago\\_apworld_build"
+    ]
+  }
+}
