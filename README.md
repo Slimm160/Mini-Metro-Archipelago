@@ -54,8 +54,8 @@ Download the latest stable release: **BepInEx 5.4.23.5**
 
 Pick the correct build for your Mini Metro build:
 
-| OS | Architecture | Download | SHA-256 | Size |
-|---|---|---|---|---|
+| OS | Architecture | Download |
+|---|---|---|
 | Windows | 64-bit | [BepInEx_win_x64_5.4.23.5.zip](https://github.com/BepInEx/BepInEx/releases/download/v5.4.23.5/BepInEx_win_x64_5.4.23.5.zip)
 | Windows | 32-bit *(most common)* | [BepInEx_win_x86_5.4.23.5.zip](https://github.com/BepInEx/BepInEx/releases/download/v5.4.23.5/BepInEx_win_x86_5.4.23.5.zip)
 | Linux | 64-bit | [BepInEx_linux_x64_5.4.23.5.zip](https://github.com/BepInEx/BepInEx/releases/download/v5.4.23.5/BepInEx_linux_x64_5.4.23.5.zip) | 
