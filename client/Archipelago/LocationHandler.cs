@@ -38,20 +38,22 @@ public class LocationHandler : IDisposable
         // check still run against the full history.
         foreach (long id in data.CheckedLocations) sentThisSession.Add(id);
 
-        GameApi.Events.GameStarted += OnGameStarted;
         GameApi.Events.WeekChanged += OnWeekChanged;
     }
 
     public void Dispose()
     {
-        GameApi.Events.GameStarted -= OnGameStarted;
         GameApi.Events.WeekChanged -= OnWeekChanged;
     }
 
-    /// <summary>Game start → fire the Week 1 check (the WeekChanged poll never raises for it).</summary>
-    private void OnGameStarted(Game g) => TrySend(g, 1);
-
-    /// <summary>Each subsequent week transition → fire the check for the new week.</summary>
+    /// <summary>
+    /// The HUD displays "Week N" where <c>N = Clock.ClosestWeek + 1</c> (see
+    /// <c>NewAssetScreen.cs:108</c>), and <c>Game.Week</c> mirrors the 0-based
+    /// <c>Clock.Week</c>. So when the player completes the first scoring milestone
+    /// (HUD "Week 1" → "Week 2"), <c>Game.Week</c> transitions 0 → 1 and we want to
+    /// fire the AP "<c>Week 1</c>" check. Sending <paramref name="week"/> directly
+    /// gives that mapping.
+    /// </summary>
     private void OnWeekChanged(Game g, int week) => TrySend(g, week);
 
     private void TrySend(Game g, int week)

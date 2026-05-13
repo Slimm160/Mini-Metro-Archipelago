@@ -44,6 +44,34 @@ public static partial class GameApi
 
         // --- Asset inventory ---------------------------------------------
 
+        /// <summary>
+        /// Permanently strip <paramref name="count"/> assets of <paramref name="type"/>
+        /// from the player's inventory via the prepatcher-injected <c>RemoveAsset</c>.
+        /// Unlike <see cref="Asset"/> this also decrements <c>totalAssets</c> (and
+        /// <c>initialAssets</c> when <paramref name="isInitial"/> is true), so the
+        /// stripped assets cannot be reissued by the city's setup or a reset. Used by
+        /// the AP path to enforce starting-inventory limits when an asset type isn't
+        /// yet unlocked.
+        /// </summary>
+        public static void PermanentRemove(AssetType type, int count = 1, bool isInitial = false)
+        {
+            if (count <= 0) return;
+            MainThreadDispatcher.Enqueue(() =>
+            {
+                var g = CurrentGame;
+                if (g?.AssetDatabase == null || RemoveAsset == null) return;
+                int removed = 0;
+                for (int i = 0; i < count; i++)
+                {
+                    if (g.AssetDatabase.GetAvailableAssets(type) <= 0) break;
+                    RemoveAsset(g.AssetDatabase, type, isInitial);
+                    removed++;
+                }
+                if (removed > 0)
+                    Plugin.BepinLogger.LogInfo($"Permanently stripped {removed}× {type} (isInitial={isInitial}).");
+            });
+        }
+
         /// <summary>Consume <paramref name="count"/> of an asset type from inventory.</summary>
         public static void Asset(AssetType type, int count = 1)
         {

@@ -153,6 +153,7 @@ public class ArchipelagoClient
         MainThreadDispatcher.Enqueue(() =>
         {
             ItemHandler.Reset();
+            UnlockState.Reset();
 
             // Repopulate map unlock set: start from empty so a reconnect drops stale
             // entries, then add starting maps for the configured mode only.
@@ -171,10 +172,12 @@ public class ArchipelagoClient
             }
             MapApi.State.IsActive = true;
 
-            // Baseline upgrade pool: Locomotive + Tram so the locomotive panel always
-            // has something to show on tram cities. Shinkansen and all upgrade-panel
-            // types stay filtered out until their unlock items arrive.
-            GameApi.Grant.LimitPicksTo(AssetType.Locomotive, AssetType.Tram);
+            // Hook GameStarted so we re-apply the picker filter and strip locked
+            // starting inventory on every map open — SetGame clears AllowedPicks
+            // and the city's setup re-adds initial assets each time, so without this
+            // re-apply the filter is dead after the first map open.
+            GameApi.Events.GameStarted -= OnGameStartedApplyUnlocks;
+            GameApi.Events.GameStarted += OnGameStartedApplyUnlocks;
 
             Plugin.BepinLogger.LogInfo(
                 $"AP init: mode={mode}, starting={ServerData.StartingMaps.Count}, " +
@@ -183,15 +186,62 @@ public class ArchipelagoClient
         });
     }
 
+    /// <summary>
+    /// Asset types the player always keeps from the city's starting inventory, even
+    /// when the corresponding "<c>... - Unlock</c>" item hasn't arrived yet. Lines and
+    /// water-crossings give the player something to play with on entry — the AP
+    /// unlocks instead gate the upgrade picker's ability to grant *more* of them.
+    /// Locomotive/Tram are here for symmetry but are also in <see cref="UnlockState"/>'s
+    /// baseline.
+    /// </summary>
+    private static readonly System.Collections.Generic.HashSet<AssetType> KeepInitialTypes = new()
+    {
+        AssetType.Line,
+        AssetType.Crossing,
+        AssetType.Bridge,
+        AssetType.Locomotive,
+        AssetType.Tram,
+    };
+
+    /// <summary>
+    /// Per-map application of AP unlock state. Fires on every <see cref="GameApi.Events.GameStarted"/>
+    /// (i.e., right after the city's <c>InitialAssets</c> have been added via
+    /// <c>AddAsset</c>). Re-seeds <c>AllowedPicks</c> from <see cref="UnlockState"/>
+    /// and permanently strips any starting inventory whose type the player hasn't
+    /// unlocked AND isn't in the always-keep set (<see cref="KeepInitialTypes"/>).
+    /// </summary>
+    private static void OnGameStartedApplyUnlocks(Game game)
+    {
+        // Re-seed the picker filter directly (we're already on the main thread; the
+        // dispatched LimitPicksTo would queue for next frame, leaving a one-frame
+        // window where the picker is unfiltered).
+        GameApi.AllowedPicks.Clear();
+        foreach (var t in UnlockState.Unlocked) GameApi.AllowedPicks.Add(t);
+
+        // Strip starting inventory for types the player hasn't unlocked AND that
+        // aren't on the keep-initial list (e.g., Carriage, Interchange, Shinkansen).
+        var ad = game?.AssetDatabase;
+        if (ad == null) return;
+        foreach (AssetType type in System.Enum.GetValues(typeof(AssetType)))
+        {
+            if (type == AssetType.None || type == AssetType.Count) continue;
+            if (UnlockState.Contains(type) || KeepInitialTypes.Contains(type)) continue;
+            int n = ad.GetAvailableAssets(type);
+            if (n > 0) GameApi.Take.PermanentRemove(type, n, isInitial: true);
+        }
+    }
+
     /// <summary>Restore vanilla unlock and picker behavior when AP is no longer driving the game.</summary>
     private void TearDownState()
     {
+        GameApi.Events.GameStarted -= OnGameStartedApplyUnlocks;
         MainThreadDispatcher.Enqueue(() =>
         {
             MapApi.State.IsActive = false;
             MapApi.Take.Clear();
             GameApi.Grant.ClearPickLimit();
             ItemHandler.Reset();
+            UnlockState.Reset();
         });
     }
 

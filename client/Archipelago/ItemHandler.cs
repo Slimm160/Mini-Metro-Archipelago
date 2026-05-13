@@ -26,6 +26,17 @@ public static class ItemHandler
     /// <summary>Drop shard progress so reconnect-replay rebuilds it from scratch.</summary>
     public static void Reset() => ShardCounts.Clear();
 
+    /// <summary>
+    /// Record an unlocked asset type. Writes the persistent <see cref="UnlockState"/>
+    /// (consulted on every GameStarted) and the live <c>AllowedPicks</c> filter
+    /// (consulted by the next picker open in the current run).
+    /// </summary>
+    private static void Unlock(AssetType type)
+    {
+        UnlockState.Add(type);
+        GameApi.Grant.AllowPickType(type);
+    }
+
     public static void Handle(ItemInfo item)
     {
         if (item?.ItemName == null)
@@ -39,16 +50,19 @@ public static class ItemHandler
         switch (item.ItemName)
         {
             // --- Asset unlocks → upgrade picker filter ---
-            case "New Line - Unlock":     GameApi.Grant.AllowPickType(AssetType.Line); break;
-            case "Interchange - Unlock":  GameApi.Grant.AllowPickType(AssetType.Interchange); break;
-            case "Shinkansen - Unlock":   GameApi.Grant.AllowPickType(AssetType.Shinkansen); break;
+            // Each unlock writes to BOTH UnlockState (persistent across map opens,
+            // re-applied on every GameStarted) and the live AllowedPicks via
+            // AllowPickType (so a mid-run unlock takes effect on the next picker).
+            case "New Line - Unlock":     Unlock(AssetType.Line); break;
+            case "Interchange - Unlock":  Unlock(AssetType.Interchange); break;
+            case "Shinkansen - Unlock":   Unlock(AssetType.Shinkansen); break;
             case "Tunnel/Bridge - Unlock":
                 // Cities use exactly one crossing style; granting both is harmless because
                 // the per-city upgrade pool only contains the relevant one.
-                GameApi.Grant.AllowPickType(AssetType.Crossing);
-                GameApi.Grant.AllowPickType(AssetType.Bridge);
+                Unlock(AssetType.Crossing);
+                Unlock(AssetType.Bridge);
                 break;
-            case "Carriage - Unlock":     GameApi.Grant.AllowPickType(AssetType.Carriage); break;
+            case "Carriage - Unlock":     Unlock(AssetType.Carriage); break;
 
             // --- Useful filler ---
             case "Extra Locomotive": GameApi.Grant.Locomotive(1); break;
