@@ -121,7 +121,7 @@ class TrapChance(Range):
         Rush Hour: A station gets overcrowded.
         Renovation: Your lines get removed and you must rebuild them from scratch.
         Delayed: Your next week is delayed by another week.
-        Derailed: One of your trains gets removed.
+        Derailed: One of your trains gets permanently removed.
     """
     display_name = "Trap Chance"
     range_start = 0

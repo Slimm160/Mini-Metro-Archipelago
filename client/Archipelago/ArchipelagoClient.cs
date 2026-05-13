@@ -14,7 +14,9 @@ namespace client.Archipelago;
 public class ArchipelagoClient
 {
     public const string APVersion = "0.6.7";
-    private const string Game = "MiniMetro";
+    // Must match `game = "Mini Metro"` in apworld/MiniMetro.py — the server rejects
+    // the slot with "the slot is not for this game" if these disagree.
+    private const string Game = "Mini Metro";
 
     public static bool Authenticated;
     private bool attemptingConnection;
