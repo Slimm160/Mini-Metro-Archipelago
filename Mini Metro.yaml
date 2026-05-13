@@ -91,25 +91,54 @@ Mini Metro:
     # Target week level to complete
     #
     # You can define additional values between the minimum and maximum values.
-    # Minimum value is 1
+    # Minimum value is 3
     # Maximum value is 10
     9: 50
     random: 0
     random-low: 0 # random value weighted towards lower values
     random-high: 0 # random value weighted towards higher values
-    random-range-1-10: 0 # random value between 1 and 10
+    random-range-3-10: 0 # random value between 3 and 10
 
   max_weeks:
     # Maximum number of weeks per map
     #
     # You can define additional values between the minimum and maximum values.
-    # Minimum value is 1
+    # Minimum value is 3
     # Maximum value is 10
     9: 50
     random: 0
     random-low: 0 # random value weighted towards lower values
     random-high: 0 # random value weighted towards higher values
-    random-range-1-10: 0 # random value between 1 and 10
+    random-range-3-10: 0 # random value between 3 and 10
+
+  game_mode:
+    # Game mode to play.
+    #
+    # **Classic:** Standard Mini Metro rules.
+    #
+    # **Extreme:** Lines cannot be redrawn after being placed.
+    classic: 50
+    extreme: 0
+
+  trap_chance:
+    # Percentage of filler items replaced with traps.
+    #
+    # **Rush Hour:** Passengers spawn at a faster rate.
+    #
+    # **Renovation:** Your lines get removed and you must rebuild them from scratch.
+    #
+    # **Delays:** You go back to the previous day.
+    #
+    # **Rerailed:** One of your trains gets removed.
+    #
+    # You can define additional values between the minimum and maximum values.
+    # Minimum value is 0
+    # Maximum value is 100
+    20: 50
+    random: 0
+    random-low: 0 # random value weighted towards lower values
+    random-high: 0 # random value weighted towards higher values
+    random-range-0-100: 0 # random value between 0 and 100
 
   death_link:
     # When you die, everyone who enabled death link dies. Of course, the reverse is true too.

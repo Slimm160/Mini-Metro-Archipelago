@@ -9,7 +9,7 @@ import pkgutil
 from BaseClasses import Region, Entrance, Item, Location, ItemClassification, MultiWorld
 from worlds.AutoWorld import World
 from worlds.generic.Rules import set_rule
-from Options import Range, DeathLink, PerGameCommonOptions
+from Options import Range, Choice, DeathLink, PerGameCommonOptions
 
 _ITEM_NAME_TO_ID = json.loads(pkgutil.get_data(__name__, "data/items.json").decode())
 _LOCATION_NAME_TO_ID = json.loads(pkgutil.get_data(__name__, "data/locations.json").decode())
@@ -56,11 +56,22 @@ ITEMS = {
     "Interchange - Unlock": ItemClassification.progression,
     "Shinkansen - Unlock": ItemClassification.progression,
     "Tunnel/Bridge - Unlock": ItemClassification.progression,
-    "Budget Increase": ItemClassification.useful,
-    "Extra Train": ItemClassification.useful,
-    "Extra Carriage": ItemClassification.useful,
-    "Extra Speed": ItemClassification.useful,
+    "Carriage - Unlock": ItemClassification.progression,
 }
+
+HELPER_ITEMS = {
+    "Extra Train": ItemClassification.useful,
+    "Extra Speed": ItemClassification.useful,
+    "Budget Increase": ItemClassification.useful,
+    "Clear Station": ItemClassification.useful,
+}
+
+TRAPS = [
+    "Rush Hour",
+    "Renovation",
+    "Delays",
+    "Rerailed",
+]
 
 class StartingMaps(Range):
     """Number of maps to start with unlocked"""
@@ -81,7 +92,7 @@ class MapsToComplete(Range):
 class TargetWeek(Range):
     """Target week level to complete"""
     display_name = "Target Week"
-    range_start = 1
+    range_start = 3
     range_end = 10
     default = 9
 
@@ -89,9 +100,33 @@ class TargetWeek(Range):
 class MaxWeeks(Range):
     """Maximum number of weeks per map"""
     display_name = "Max Weeks"
-    range_start = 1
+    range_start = 3
     range_end = 10
     default = 9
+
+
+class GameMode(Choice):
+    """Game mode to play:
+        Classic: Standard Mini Metro rules.
+        Extreme: Lines cannot be redrawn after being placed.
+    """
+    display_name = "Game Mode"
+    option_classic = 0
+    option_extreme = 1
+    default = 0
+
+
+class TrapChance(Range):
+    """Percentage of filler items replaced with traps:
+        Rush Hour: Passengers spawn at a faster rate.
+        Renovation: Your lines get removed and you must rebuild them from scratch.
+        Delays: You go back to the previous day.
+        Rerailed: One of your trains gets removed.
+    """
+    display_name = "Trap Chance"
+    range_start = 0
+    range_end = 100
+    default = 20
 
 
 @dataclass
@@ -101,6 +136,8 @@ class MiniMetroOptions(PerGameCommonOptions):
     maps_to_complete: MapsToComplete
     target_week: TargetWeek
     max_weeks: MaxWeeks
+    game_mode: GameMode
+    trap_chance: TrapChance
     death_link: DeathLink
 
 
@@ -181,25 +218,38 @@ class MiniMetroWorld(World):
                     self.item_name_to_id[item_name],
                     self.player
                 ))        
-        for map_name in self.unlockable_maps:
-            unlock_item_name = f"{map_name} - Unlock"
-            items_to_create.append(MiniMetroItem(
-                unlock_item_name,
-                ItemClassification.progression,
-                self.item_name_to_id[unlock_item_name],
-                self.player
-            ))        
-        available_maps = self.starting_maps + self.unlockable_maps
         max_weeks = int(self.options.max_weeks.value)
-        total_locations = len(available_maps) * max_weeks        
+        shards_per_map = max(max_weeks - 1 if max_weeks < 5 else max_weeks - 2, 1)
+        for map_name in self.unlockable_maps:
+            shard_item_name = f"{map_name} - Shard"
+            for _ in range(shards_per_map):
+                items_to_create.append(MiniMetroItem(
+                    shard_item_name,
+                    ItemClassification.progression,
+                    self.item_name_to_id[shard_item_name],
+                    self.player
+                ))
+        available_maps = self.starting_maps + self.unlockable_maps
+        total_locations = len(available_maps) * max_weeks
         remaining_slots = total_locations - len(items_to_create)
-        useful_item_names = ["Extra Train", "Extra Carriage", "Extra Speed", "Budget Increase"]
-        for i in range(remaining_slots):
+        trap_chance = int(self.options.trap_chance.value)
+        num_traps = (remaining_slots * trap_chance) // 100
+        num_filler = remaining_slots - num_traps
+        useful_item_names = ["Extra Train", "Extra Speed", "Budget Increase", "Clear Station"]
+        for i in range(num_filler):
             useful_item = useful_item_names[i % len(useful_item_names)]
             items_to_create.append(MiniMetroItem(
                 useful_item,
                 ItemClassification.useful,
                 self.item_name_to_id[useful_item],
+                self.player
+            ))
+        for i in range(num_traps):
+            trap_name = TRAPS[i % len(TRAPS)]
+            items_to_create.append(MiniMetroItem(
+                trap_name,
+                ItemClassification.trap,
+                self.item_name_to_id[trap_name],
                 self.player
             ))
         self.multiworld.itempool += items_to_create
@@ -217,16 +267,17 @@ class MiniMetroWorld(World):
                         self.multiworld.get_location(curr_location, self.player),
                         lambda state, prev_loc=prev_location: state.can_reach_location(prev_loc, self.player)
                     )        
+        shards_per_map = max(max_weeks - 1 if max_weeks < 5 else max_weeks - 2, 1)
         for map_name in self.unlockable_maps:
-            unlock_item_name = f"{map_name} - Unlock"
+            shard_item_name = f"{map_name} - Shard"
             for week in range(1, max_weeks + 1):
                 location_name = f"{map_name} - Week {week}"
                 if location_name in self.location_name_to_id:
                     location = self.multiworld.get_location(location_name, self.player)
                     set_rule(
                         location,
-                        lambda state, item_name=unlock_item_name: state.has(item_name, self.player)
-                    )        
+                        lambda state, item_name=shard_item_name, count=shards_per_map: state.has(item_name, self.player, count)
+                    )
         maps_to_beat = int(self.options.maps_to_complete.value)
         target_week = int(self.options.target_week.value)
         victory_locations = []
@@ -250,5 +301,6 @@ class MiniMetroWorld(World):
             "maps_to_complete": int(self.options.maps_to_complete.value),
             "target_week": int(self.options.target_week.value),
             "max_weeks": int(self.options.max_weeks.value),
+            "game_mode": "extreme" if int(self.options.game_mode.value) == 1 else "classic",
             "death_link": bool(self.options.death_link.value),
         }
