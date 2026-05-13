@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using Newtonsoft.Json;
 
 namespace client.Archipelago;
@@ -21,6 +22,17 @@ public class ArchipelagoData
     private Dictionary<string, object> slotData;
 
     public bool NeedSlotData => slotData == null;
+
+    /// <summary>True if the apworld's slot data sets the standard <c>death_link</c> flag.</summary>
+    public bool DeathLink
+    {
+        get
+        {
+            if (slotData == null || !slotData.TryGetValue("death_link", out var v)) return false;
+            try { return Convert.ToInt32(v) != 0; }
+            catch { return false; }
+        }
+    }
 
     public ArchipelagoData()
     {

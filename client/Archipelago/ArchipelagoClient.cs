@@ -13,7 +13,7 @@ namespace client.Archipelago;
 
 public class ArchipelagoClient
 {
-    public const string APVersion = "0.5.0";
+    public const string APVersion = "0.6.7";
     private const string Game = "MiniMetro";
 
     public static bool Authenticated;
@@ -69,7 +69,7 @@ public class ArchipelagoClient
                         Game,
                         ServerData.SlotName,
                         ItemsHandlingFlags.AllItems,
-                        new Version(APVersion),
+                        new System.Version(APVersion),
                         password: ServerData.Password,
                         requestSlotData: ServerData.NeedSlotData
                     )));
@@ -96,7 +96,7 @@ public class ArchipelagoClient
             ServerData.SetupSession(success.SlotData, session.RoomState.Seed);
             Authenticated = true;
 
-            DeathLinkHandler = new(session.CreateDeathLinkService(), ServerData.SlotName);
+            DeathLinkHandler = new(session.CreateDeathLinkService(), ServerData.SlotName, ServerData.DeathLink);
             session.Locations.CompleteLocationChecksAsync(ServerData.CheckedLocations.ToArray());
             outText = $"Successfully connected to {ServerData.Uri} as {ServerData.SlotName}!";
 
@@ -124,6 +124,8 @@ public class ArchipelagoClient
     private void Disconnect()
     {
         Plugin.BepinLogger.LogDebug("disconnecting from server...");
+        DeathLinkHandler?.Dispose();
+        DeathLinkHandler = null;
         session?.Socket.DisconnectAsync();
         session = null;
         Authenticated = false;
@@ -146,9 +148,7 @@ public class ArchipelagoClient
 
         ServerData.Index++;
 
-        // TODO reward the item here
-        // if items can be received while in an invalid state for actually handling them, they can be placed in a local
-        // queue/collection to be handled later
+        ItemHandler.Handle(receivedItem);
     }
 
     /// <summary>

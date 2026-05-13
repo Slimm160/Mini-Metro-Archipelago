@@ -20,12 +20,18 @@ public class Plugin : BaseUnityPlugin
 
     private void Awake()
     {
-        // Plugin startup logic
         BepinLogger = Logger;
         ArchipelagoClient = new ArchipelagoClient();
         ArchipelagoConsole.Awake();
+        Patcher.Apply();
+        DevPanel.Awake();
 
         ArchipelagoConsole.LogMessage($"{ModDisplayInfo} loaded!");
+    }
+
+    private void Update()
+    {
+        MainThreadDispatcher.Drain();
     }
 
     private void OnGUI()
@@ -70,5 +76,6 @@ public class Plugin : BaseUnityPlugin
             }
         }
         // this is a good place to create and add a bunch of debug buttons
+        DevPanel.OnGUI();
     }
 }
