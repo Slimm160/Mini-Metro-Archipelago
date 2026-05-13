@@ -43,7 +43,7 @@
   "Auckland - Shard": 100041,
   "Rush Hour": 100042,
   "Renovation": 100043,
-  "Delays": 100044,
-  "Rerailed": 100045,
+  "Delayed": 100044,
+  "Derailed": 100045,
   "Clear Station": 100046
 }

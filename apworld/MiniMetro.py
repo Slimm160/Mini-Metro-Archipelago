@@ -60,8 +60,8 @@ ITEMS = {
 }
 
 HELPER_ITEMS = {
-    "Extra Train": ItemClassification.useful,
-    "Extra Speed": ItemClassification.useful,
+    "Extra Locomotive": ItemClassification.useful,
+    "Extra Carriage": ItemClassification.useful,
     "Budget Increase": ItemClassification.useful,
     "Clear Station": ItemClassification.useful,
 }
@@ -118,10 +118,10 @@ class GameMode(Choice):
 
 class TrapChance(Range):
     """Percentage of filler items replaced with traps:
-        Rush Hour: Passengers spawn at a faster rate.
+        Rush Hour: A station gets overcrowded.
         Renovation: Your lines get removed and you must rebuild them from scratch.
-        Delays: You go back to the previous day.
-        Rerailed: One of your trains gets removed.
+        Delayed: Your next week is delayed by another week.
+        Derailed: One of your trains gets removed.
     """
     display_name = "Trap Chance"
     range_start = 0

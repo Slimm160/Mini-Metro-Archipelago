@@ -90,4 +90,29 @@ public static partial class GameApi
             IsPickerStuck = assetGroupIndex != 0 && __result.Count == 0;
         }
     }
+
+    /// <summary>
+    /// Reset <see cref="IsPickerStuck"/> on every entry into the picker screen.
+    /// Without this, a stuck flag set during the previous run's upgrade pick can leak
+    /// into a fresh screen (e.g. the locomotive grant on week start) before either
+    /// the locomotive prefix below or the <c>GetAssets</c> postfix has had a chance
+    /// to recompute it.
+    /// </summary>
+    [HarmonyPatch(typeof(NewAssetScreen), nameof(NewAssetScreen.HandleTransitionIn))]
+    internal static class NewAssetScreen_TransitionIn_Patch
+    {
+        static void Prefix() => IsPickerStuck = false;
+    }
+
+    /// <summary>
+    /// The locomotive panel never needs Skip — locomotive grants must be claimed.
+    /// The fixed-choice path of <c>BuildLocomotivePanel</c> bypasses <c>GetAssets</c>,
+    /// so we force the flag off whenever a locomotive panel is built, regardless of
+    /// which path the screen took to get there.
+    /// </summary>
+    [HarmonyPatch(typeof(NewAssetScreen), "BuildLocomotivePanel")]
+    internal static class NewAssetScreen_BuildLocomotive_Patch
+    {
+        static void Prefix() => IsPickerStuck = false;
+    }
 }

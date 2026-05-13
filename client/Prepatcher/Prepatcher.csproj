@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>netstandard2.1</TargetFramework>
+        <AssemblyName>client.Prepatcher</AssemblyName>
+        <Description>Mini Metro Archipelago Prepatcher (injects AssetDatabase.RemoveAsset)</Description>
+        <Version>1.0.0</Version>
+        <LangVersion>latest</LangVersion>
+        <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+        <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+        <RestoreAdditionalProjectSources>
+            https://api.nuget.org/v3/index.json;
+            https://nuget.bepinex.dev/v3/index.json
+        </RestoreAdditionalProjectSources>
+        <RootNamespace>client.Prepatcher</RootNamespace>
+        <MiniMetroPath Condition="'$(MiniMetroPath)' == ''">C:\Program Files (x86)\Steam\steamapps\common\MiniMetro</MiniMetroPath>
+    </PropertyGroup>
+
+    <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+        <DebugSymbols>true</DebugSymbols>
+        <DebugType>full</DebugType>
+        <Optimize>false</Optimize>
+        <!-- BepInEx 5 loads patchers from BepInEx/patchers/* before plugins -->
+        <OutputPath>$(MiniMetroPath)\BepInEx\patchers\$(AssemblyName)</OutputPath>
+        <DefineConstants>DEBUG;TRACE</DefineConstants>
+    </PropertyGroup>
+    <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+        <DebugType>none</DebugType>
+        <Optimize>true</Optimize>
+        <OutputPath>bin\Release\$(AssemblyName)</OutputPath>
+        <DefineConstants>TRACE</DefineConstants>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- BepInEx.Core already brings Mono.Cecil; the explicit ref pins the API surface we use. -->
+        <PackageReference Include="BepInEx.Core" Version="5.*" />
+        <PackageReference Include="Mono.Cecil" Version="0.11.5" />
+    </ItemGroup>
+
+</Project>

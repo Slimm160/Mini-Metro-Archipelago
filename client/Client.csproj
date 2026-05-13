@@ -45,6 +45,13 @@
     </Target>
 
     <ItemGroup>
+        <!-- Prepatcher is its own project; keep its sources, bin and obj out of this build. -->
+        <Compile Remove="Prepatcher\**" />
+        <EmbeddedResource Remove="Prepatcher\**" />
+        <None Remove="Prepatcher\**" />
+    </ItemGroup>
+
+    <ItemGroup>
         <PackageReference Include="Archipelago.MultiClient.Net" Version="6.7.0" />
         <PackageReference Include="BepInEx.Analyzers" Version="1.*" PrivateAssets="all" />
         <PackageReference Include="BepInEx.Core" Version="5.*" />

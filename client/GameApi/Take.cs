@@ -18,10 +18,28 @@ public static partial class GameApi
         private static readonly FieldInfo F_ScheduledScreen    = AccessTools.Field(typeof(Game), "scheduledScreen");
         private static readonly FieldInfo F_Screens            = AccessTools.Field(typeof(Game), "screens");
 
-        // Reflection handle for permanent delete — the totalAssets backing array on
-        // AssetDatabase has no setter or decrement API.
-        private static readonly FieldInfo F_TotalAssets = AccessTools.Field(typeof(AssetDatabase), "totalAssets");
-        private static readonly AssetType[] AllAssetTypes = (AssetType[])Enum.GetValues(typeof(AssetType));
+        // Bound at startup to the RemoveAsset method injected by the BepInEx prepatcher
+        // (client.Prepatcher.AssetDatabasePrepatcher). It is the public inverse of AddAsset —
+        // decrements initialAssets/totalAssets/availableAssets and refreshes the HUD panel.
+        // The compile-time Assembly-CSharp reference does not declare it, so we bind via reflection.
+        private static readonly Action<AssetDatabase, AssetType, bool> RemoveAsset = ResolveRemoveAsset();
+        // Exclude AssetType.None (no-op slot) and AssetType.Count (the sentinel = arrays.Length,
+        // so indexing into AssetDatabase's int[10] arrays with it throws IndexOutOfRangeException).
+        private static readonly AssetType[] AllAssetTypes = System.Array.FindAll(
+            (AssetType[])Enum.GetValues(typeof(AssetType)),
+            t => t != AssetType.None && t != AssetType.Count);
+
+        private static Action<AssetDatabase, AssetType, bool> ResolveRemoveAsset()
+        {
+            var m = AccessTools.Method(typeof(AssetDatabase), "RemoveAsset", new[] { typeof(AssetType), typeof(bool) });
+            if (m == null)
+            {
+                Plugin.BepinLogger.LogWarning("AssetDatabase.RemoveAsset not found — prepatcher missing? Permanent delete will fall back to leaking totalAssets bookkeeping.");
+                return null;
+            }
+            return (Action<AssetDatabase, AssetType, bool>)Delegate.CreateDelegate(
+                typeof(Action<AssetDatabase, AssetType, bool>), m);
+        }
 
 
         // --- Asset inventory ---------------------------------------------
@@ -59,19 +77,34 @@ public static partial class GameApi
             });
         }
 
-        /// <summary>Clear all waiting passengers at a specific (or random) station.</summary>
+        /// <summary>
+        /// Clear all waiting passengers at a specific station, or — when no index is given —
+        /// at the most-crowded station (the one closest to overflowing, where the relief
+        /// matters most). Ties are broken by lowest station Id for determinism.
+        /// </summary>
         public static void Peeps(int stationIndex = -1)
         {
             MainThreadDispatcher.Enqueue(() =>
             {
                 var g = CurrentGame;
                 if (g == null || g.City.StationCount == 0) return;
-                var s = (stationIndex < 0 || stationIndex >= g.City.StationCount)
-                    ? g.City.GetStation(Random.Range(0, g.City.StationCount))
-                    : g.City.GetStation(stationIndex);
+                Station s;
+                if (stationIndex >= 0 && stationIndex < g.City.StationCount)
+                {
+                    s = g.City.GetStation(stationIndex);
+                }
+                else
+                {
+                    s = g.City.GetStation(0);
+                    for (int i = 1; i < g.City.StationCount; i++)
+                    {
+                        var candidate = g.City.GetStation(i);
+                        if (candidate.PeepCount > s.PeepCount) s = candidate;
+                    }
+                }
                 int cleared = s.PeepCount;
                 while (s.PeepCount > 0) s.RemovePeep(s.GetPeep(0));
-                Plugin.BepinLogger.LogInfo($"Cleared {cleared} peeps at station {s.Id}.");
+                Plugin.BepinLogger.LogInfo($"Cleared {cleared} peeps at station {s.Id} (most crowded).");
             });
         }
 
@@ -183,10 +216,11 @@ public static partial class GameApi
         }
 
         /// <summary>
-        /// Run a removal that releases assets back to inventory, then strip those
-        /// released assets out of both <c>availableAssets</c> (via <c>ConsumeAsset</c>,
-        /// which keeps the HUD asset panel in sync) and <c>totalAssets</c> (via
-        /// reflection, since the field has no public mutator).
+        /// Run a removal that releases assets back to inventory, then strip the released
+        /// assets out of <c>availableAssets</c> AND <c>totalAssets</c> via the prepatched
+        /// <c>RemoveAsset</c> (which also keeps the HUD panel in sync). If the prepatcher
+        /// didn't load, falls back to <c>ConsumeAsset</c> — visually correct but leaves
+        /// <c>totalAssets</c> inflated, so the asset cap drifts upward.
         /// </summary>
         private static void DeletePermanently(Game g, Action remove)
         {
@@ -199,12 +233,14 @@ public static partial class GameApi
 
             remove();
 
-            if (!(F_TotalAssets.GetValue(ad) is int[] totals)) return;
             for (int i = 0; i < AllAssetTypes.Length; i++)
             {
                 int delta = ad.GetAvailableAssets(AllAssetTypes[i]) - before[i];
-                for (int j = 0; j < delta; j++) ad.ConsumeAsset(AllAssetTypes[i]);
-                if (delta > 0) totals[(int)AllAssetTypes[i]] = Mathf.Max(0, totals[(int)AllAssetTypes[i]] - delta);
+                if (delta <= 0) continue;
+                if (RemoveAsset != null)
+                    for (int j = 0; j < delta; j++) RemoveAsset(ad, AllAssetTypes[i], false);
+                else
+                    for (int j = 0; j < delta; j++) ad.ConsumeAsset(AllAssetTypes[i]);
             }
         }
 

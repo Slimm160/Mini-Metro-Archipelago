@@ -50,6 +50,11 @@ public static class ArchipelagoConsole
     public static void OnGUI()
     {
         if (logLines.Count == 0) return;
+        // The console box renders at top-center via IMGUI, which is drawn on top of
+        // Futile — overlapping the upgrade picker's "Week N" title and clipping it to
+        // just the visible characters at the edges. Skip rendering while the picker
+        // is open.
+        if (GameApi.State.IsInGame && GameApi.State.Game.Screen == GameScreen.NewAsset) return;
 
         if (!Hidden || Time.time - lastUpdateTime < HideTimeout)
         {

@@ -48,9 +48,10 @@ public static partial class GameApi
     internal static float TrainSpeedMultiplier = 1f;
 
     /// <summary>
-    /// IMGUI rescue button — appears centred on screen when the live upgrade picker has
+    /// IMGUI rescue button — appears below the picker when the live upgrade panel has
     /// no buttons to click. Calls <c>State.SkipUpgrade</c>, which advances to the next
-    /// pick or closes the picker if this was the last.
+    /// pick or closes the picker if this was the last. Positioned at ~75% screen
+    /// height so it doesn't overlap the title (top) or the asset panel (centre).
     /// </summary>
     public static void OnGUI()
     {
@@ -60,8 +61,8 @@ public static partial class GameApi
 
         const float w = 200f, h = 40f;
         var rect = new UnityEngine.Rect(
-            (UnityEngine.Screen.width  - w) * 0.5f,
-            (UnityEngine.Screen.height - h) * 0.5f,
+            (UnityEngine.Screen.width - w) * 0.5f,
+            UnityEngine.Screen.height * 0.75f,
             w, h);
         if (UnityEngine.GUI.Button(rect, "Skip")) State.SkipUpgrade();
     }
