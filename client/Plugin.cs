@@ -77,5 +77,6 @@ public class Plugin : BaseUnityPlugin
         }
         // this is a good place to create and add a bunch of debug buttons
         DevPanel.OnGUI();
+        GameApi.OnGUI();
     }
 }

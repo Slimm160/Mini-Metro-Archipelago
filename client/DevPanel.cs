@@ -115,9 +115,21 @@ public static class DevPanel
         if (GUILayout.Button("Overflow (random)")) GameApi.Take.Overflow();
         if (GUILayout.Button("Remove a train")) GameApi.Take.Train();
         if (GUILayout.Button("Remove a line")) GameApi.Take.Line();
+        if (GUILayout.Button("Delete a train (permanent)")) GameApi.Take.DeleteTrain();
+        if (GUILayout.Button("Delete a line (permanent)")) GameApi.Take.DeleteLine();
         if (GUILayout.Button("Clear peeps (1 stn)")) GameApi.Take.Peeps();
         if (GUILayout.Button("Clear ALL peeps")) GameApi.Take.AllPeeps();
         if (GUILayout.Button("End game (force loss)")) GameApi.Take.EndGame();
+
+        GUILayout.Space(6);
+
+        // --- Tuning --------------------------------------------------------
+        GUILayout.Label("=== Tuning ===");
+        GUILayout.Label($"Spawn x{GameApi.PeepSpawnMultiplier:F2}   Speed x{GameApi.TrainSpeedMultiplier:F2}");
+        GUILayout.BeginHorizontal();
+        if (GUILayout.Button("Spawn +25%")) GameApi.PeepSpawnMultiplier += 0.25f;
+        if (GUILayout.Button("Speed +25%")) GameApi.TrainSpeedMultiplier += 0.25f;
+        GUILayout.EndHorizontal();
 
         GUILayout.Space(6);
 

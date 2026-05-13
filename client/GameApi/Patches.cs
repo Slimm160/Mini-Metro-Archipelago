@@ -63,13 +63,31 @@ public static partial class GameApi
     /// (<c>Game.ForcedAssets</c> wouldn't work here — it's only consumed by the screen
     /// after the panels are already built, so it affects the next pick, not this one.)
     /// </summary>
+    /// <summary>Scales the per-tick peep spawn rate by <see cref="PeepSpawnMultiplier"/>.</summary>
+    [HarmonyPatch(typeof(City), nameof(City.PeepSpawnScale), MethodType.Getter)]
+    internal static class City_PeepSpawnScale_Patch
+    {
+        static void Postfix(ref float __result) => __result *= PeepSpawnMultiplier;
+    }
+
+    /// <summary>Scales every train's max-speed cap by <see cref="TrainSpeedMultiplier"/>.</summary>
+    [HarmonyPatch(typeof(LocomotiveDefinition), nameof(LocomotiveDefinition.Speed), MethodType.Getter)]
+    internal static class LocomotiveDefinition_Speed_Patch
+    {
+        static void Postfix(ref float __result) => __result *= TrainSpeedMultiplier;
+    }
+
     [HarmonyPatch(typeof(NewAssetScreen), "GetAssets")]
     internal static class NewAssetScreen_GetAssets_Patch
     {
-        static void Postfix(ref System.Collections.Generic.List<UpgradeDefinition> __result)
+        static void Postfix(int assetGroupIndex, ref System.Collections.Generic.List<UpgradeDefinition> __result)
         {
-            if (AllowedPicks.Count == 0 || __result == null) return;
-            __result.RemoveAll(u => !AllowedPicks.Contains(u.Type));
+            if (__result == null) { IsPickerStuck = false; return; }
+            if (AllowedPicks.Count > 0)
+                __result.RemoveAll(u => !AllowedPicks.Contains(u.Type));
+            // Locomotive panel (group 0) never offers Skip — locomotive grants
+            // are gated separately and must be claimed.
+            IsPickerStuck = assetGroupIndex != 0 && __result.Count == 0;
         }
     }
 }
