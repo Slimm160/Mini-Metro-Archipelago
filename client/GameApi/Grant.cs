@@ -62,5 +62,19 @@ public static partial class GameApi
 
         /// <summary>Return the upgrade picker to its vanilla random pool.</summary>
         public static void ClearPickLimit() => LimitPicksTo();
+
+        /// <summary>
+        /// Add a single asset type to the upgrade picker's allowed set without
+        /// clearing what was already there. Idempotent — calling with a type that's
+        /// already permitted is a no-op. Used to drive incremental unlocks from AP.
+        /// </summary>
+        public static void AllowPickType(AssetType type)
+        {
+            MainThreadDispatcher.Enqueue(() =>
+            {
+                if (AllowedPicks.Add(type))
+                    Plugin.BepinLogger.LogInfo($"Pick pool +{type} → {{{string.Join(", ", AllowedPicks)}}}.");
+            });
+        }
     }
 }

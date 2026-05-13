@@ -69,8 +69,8 @@ HELPER_ITEMS = {
 TRAPS = [
     "Rush Hour",
     "Renovation",
-    "Delays",
-    "Rerailed",
+    "Delayed",
+    "Derailed",
 ]
 
 class StartingMaps(Range):
@@ -235,7 +235,7 @@ class MiniMetroWorld(World):
         trap_chance = int(self.options.trap_chance.value)
         num_traps = (remaining_slots * trap_chance) // 100
         num_filler = remaining_slots - num_traps
-        useful_item_names = ["Extra Train", "Extra Speed", "Budget Increase", "Clear Station"]
+        useful_item_names = ["Extra Locomotive", "Extra Carriage", "Budget Increase", "Clear Station"]
         for i in range(num_filler):
             useful_item = useful_item_names[i % len(useful_item_names)]
             items_to_create.append(MiniMetroItem(

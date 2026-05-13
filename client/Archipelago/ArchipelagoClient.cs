@@ -21,6 +21,7 @@ public class ArchipelagoClient
 
     public static ArchipelagoData ServerData = new();
     private DeathLinkHandler DeathLinkHandler;
+    private LocationHandler LocationHandler;
     private ArchipelagoSession session;
 
     /// <summary>
@@ -97,7 +98,11 @@ public class ArchipelagoClient
             Authenticated = true;
 
             DeathLinkHandler = new(session.CreateDeathLinkService(), ServerData.SlotName, ServerData.DeathLink);
+            LocationHandler = new LocationHandler(session, ServerData);
             session.Locations.CompleteLocationChecksAsync(ServerData.CheckedLocations.ToArray());
+
+            ApplyInitialState();
+
             outText = $"Successfully connected to {ServerData.Uri} as {ServerData.SlotName}!";
 
             ArchipelagoConsole.LogMessage(outText);
@@ -126,9 +131,66 @@ public class ArchipelagoClient
         Plugin.BepinLogger.LogDebug("disconnecting from server...");
         DeathLinkHandler?.Dispose();
         DeathLinkHandler = null;
+        LocationHandler?.Dispose();
+        LocationHandler = null;
         session?.Socket.DisconnectAsync();
         session = null;
         Authenticated = false;
+        TearDownState();
+    }
+
+    /// <summary>
+    /// Bring the in-game world into the state implied by slot data: map unlocks gated to
+    /// the configured mode and only for cities listed in <c>starting_maps</c>, plus the
+    /// upgrade-picker filter narrowed to baseline locomotive types until the apworld's
+    /// "<c>... - Unlock</c>" items expand it. Runs on the main thread because it mutates
+    /// shared Unity state (<c>AllowedPicks</c> is consulted from the picker postfix).
+    /// </summary>
+    private void ApplyInitialState()
+    {
+        MainThreadDispatcher.Enqueue(() =>
+        {
+            ItemHandler.Reset();
+
+            // Repopulate map unlock set: start from empty so a reconnect drops stale
+            // entries, then add starting maps for the configured mode only.
+            MapApi.State.IsActive = false;
+            MapApi.Take.Clear();
+            var mode = ServerData.Mode;
+            foreach (string display in ServerData.StartingMaps)
+            {
+                string internalId = CityNames.ToInternal(display);
+                if (internalId == null)
+                {
+                    Plugin.BepinLogger.LogWarning($"Starting map '{display}' not in CityNames bridge — skipping.");
+                    continue;
+                }
+                MapApi.Grant.Unlock(internalId, mode);
+            }
+            MapApi.State.IsActive = true;
+
+            // Baseline upgrade pool: Locomotive + Tram so the locomotive panel always
+            // has something to show on tram cities. Shinkansen and all upgrade-panel
+            // types stay filtered out until their unlock items arrive.
+            GameApi.Grant.LimitPicksTo(AssetType.Locomotive, AssetType.Tram);
+
+            Plugin.BepinLogger.LogInfo(
+                $"AP init: mode={mode}, starting={ServerData.StartingMaps.Count}, " +
+                $"unlockable={ServerData.UnlockableMaps.Count}, shards/map={ServerData.ShardsPerMap}, " +
+                $"goal={ServerData.MapsToComplete}@W{ServerData.TargetWeek}.");
+        });
+    }
+
+    /// <summary>Restore vanilla unlock and picker behavior when AP is no longer driving the game.</summary>
+    private void TearDownState()
+    {
+        MainThreadDispatcher.Enqueue(() =>
+        {
+            MapApi.State.IsActive = false;
+            MapApi.Take.Clear();
+            GameApi.Grant.ClearPickLimit();
+            ItemHandler.Reset();
+        });
     }
 
     public void SendMessage(string message)

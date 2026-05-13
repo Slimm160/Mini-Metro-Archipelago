@@ -1,5 +1,6 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
+using System.Linq;
 using Newtonsoft.Json;
 
 namespace client.Archipelago;
@@ -24,13 +25,48 @@ public class ArchipelagoData
     public bool NeedSlotData => slotData == null;
 
     /// <summary>True if the apworld's slot data sets the standard <c>death_link</c> flag.</summary>
-    public bool DeathLink
+    public bool DeathLink => GetBool("death_link");
+
+    /// <summary>Apworld display names (e.g. "London") of cities the player starts with unlocked.</summary>
+    public IReadOnlyList<string> StartingMaps => GetStringList("starting_maps");
+
+    /// <summary>Apworld display names of cities locked behind shard items.</summary>
+    public IReadOnlyList<string> UnlockableMaps => GetStringList("unlockable_maps");
+
+    /// <summary>Number of distinct cities the player must clear at <see cref="TargetWeek"/> to win.</summary>
+    public int MapsToComplete => GetInt("maps_to_complete", 20);
+
+    /// <summary>The week number that, when reached on a map, counts toward the victory tally.</summary>
+    public int TargetWeek => GetInt("target_week", 9);
+
+    /// <summary>Per-map week ceiling — the apworld emits one location per week 1..MaxWeeks.</summary>
+    public int MaxWeeks => GetInt("max_weeks", 9);
+
+    /// <summary>
+    /// Game mode the apworld pinned this seed to ("classic" or "extreme"). The client maps
+    /// this to a single <see cref="GameMode"/> below; only that mode is added to the
+    /// <see cref="MapApi"/> unlock set on connect.
+    /// </summary>
+    public string GameModeRaw => GetString("game_mode", "classic");
+
+    /// <summary>Parsed counterpart to <see cref="GameModeRaw"/>.</summary>
+    public global::GameMode Mode =>
+        string.Equals(GameModeRaw, "extreme", StringComparison.OrdinalIgnoreCase)
+            ? global::GameMode.EXTREME
+            : global::GameMode.CLASSIC;
+
+    /// <summary>
+    /// Number of <c>&lt;City&gt; - Shard</c> items the player must hold before the city
+    /// unlocks. Mirrors the apworld's formula at <c>MiniMetro.py:222</c>:
+    /// <c>max(max_weeks - (1 if max_weeks &lt; 5 else 2), 1)</c>.
+    /// </summary>
+    public int ShardsPerMap
     {
         get
         {
-            if (slotData == null || !slotData.TryGetValue("death_link", out var v)) return false;
-            try { return Convert.ToInt32(v) != 0; }
-            catch { return false; }
+            int mw = MaxWeeks;
+            int v = mw < 5 ? mw - 1 : mw - 2;
+            return v < 1 ? 1 : v;
         }
     }
 
@@ -67,5 +103,42 @@ public class ArchipelagoData
     public override string ToString()
     {
         return JsonConvert.SerializeObject(this);
+    }
+
+    // --- slot_data extraction helpers --------------------------------------
+    // The MultiClient SDK deserializes slot_data into Dictionary<string, object>
+    // with JSON-native scalar types — but lists arrive as Newtonsoft JArray and
+    // numbers can be int/long/JValue depending on size. Normalize everything here.
+
+    private bool GetBool(string key)
+    {
+        if (slotData == null || !slotData.TryGetValue(key, out var v) || v == null) return false;
+        try { return Convert.ToInt32(v) != 0; }
+        catch { return false; }
+    }
+
+    private int GetInt(string key, int fallback)
+    {
+        if (slotData == null || !slotData.TryGetValue(key, out var v) || v == null) return fallback;
+        try { return Convert.ToInt32(v); }
+        catch { return fallback; }
+    }
+
+    private string GetString(string key, string fallback)
+    {
+        if (slotData == null || !slotData.TryGetValue(key, out var v) || v == null) return fallback;
+        return v.ToString();
+    }
+
+    private IReadOnlyList<string> GetStringList(string key)
+    {
+        if (slotData == null || !slotData.TryGetValue(key, out var v) || v == null)
+            return Array.Empty<string>();
+        // Newtonsoft hands us a JArray for JSON arrays.
+        if (v is Newtonsoft.Json.Linq.JArray arr)
+            return arr.Select(t => t?.ToString()).Where(s => s != null).ToList();
+        if (v is IEnumerable<object> list)
+            return list.Select(o => o?.ToString()).Where(s => s != null).ToList();
+        return Array.Empty<string>();
     }
 }

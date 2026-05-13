@@ -155,6 +155,28 @@ public static partial class GameApi
             }
         }
 
+        /// <summary>
+        /// Remove every line on the city. Atomic — runs the whole loop on the main thread
+        /// in one dispatch so a half-cleared state can't leak between frames. Drives the
+        /// Renovation trap, which the apworld describes as wiping the network so the
+        /// player must rebuild from scratch.
+        /// </summary>
+        public static void AllLines()
+        {
+            MainThreadDispatcher.Enqueue(() =>
+            {
+                var g = CurrentGame;
+                if (g == null || g.City == null) return;
+                int removed = 0;
+                while (g.City.LineCount > 0)
+                {
+                    g.City.RemoveLine(g.City.GetLine(0));
+                    removed++;
+                }
+                Plugin.BepinLogger.LogInfo($"Trap: removed {removed} lines (renovation).");
+            });
+        }
+
         /// <summary>Remove a specific (or random) line entirely.</summary>
         public static void Line(int lineIndex = -1)
         {
