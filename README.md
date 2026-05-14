@@ -16,7 +16,7 @@ In the top left corner, you will see the archipelago login, put in your host nam
 
 *DISCLAIMERS:*
 - Make sure you don't have any games that you can resume before entering the game.
-- Alongside this, do not interact with the Steam Workshop or the Daily Challenge as these are connected to the Archipelago.
+- Alongside this, do not interact with the Steam Workshop or the Daily Challenge as these are not connected to the Archipelago.
 
 # Known Issues
 - On level-up you will see that instead of saying the week, it says "ee" we are diagnosing the issue. Other UI elements are yet to be implemented
