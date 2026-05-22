@@ -64,10 +64,17 @@ public class DeathLinkHandler : IDisposable
         });
     }
 
-    /// <summary>Local run ended — broadcast unless this was a server-induced death.</summary>
+    /// <summary>
+    /// Local run ended — broadcast a death only if this was an actual game-over
+    /// (<see cref="Game.IsOver"/>), not a quit-to-menu. <c>GameEnded</c> fires from
+    /// <c>ClearGame</c>, which also runs when the player exits voluntarily, so
+    /// without this gate every quit would send a deathlink. Also suppressed when
+    /// the local end was itself caused by an incoming deathlink (echo guard).
+    /// </summary>
     private void OnGameEnded(Game game)
     {
         if (suppressNextOutgoing) { suppressNextOutgoing = false; return; }
+        if (game == null || !game.IsOver) return;
         SendDeathLink();
     }
 
