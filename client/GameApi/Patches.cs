@@ -85,7 +85,79 @@ public static partial class GameApi
             if (__result == null) { IsPickerStuck = false; return; }
             if (AllowedPicks.Count > 0)
                 __result.RemoveAll(u => !State.IsPickAllowed(u.Type));
-            IsPickerStuck = assetGroupIndex != 0 && __result.Count == 0;
+            bool stuck = assetGroupIndex != 0 && __result.Count == 0;
+            // Inject a Ferry-typed placeholder so the upgrade panel still has one
+            // button to render — the picker is never visually empty. The button is
+            // relabeled "Skip" by NewAssetScreen_BuildAssets_Patch and its click is
+            // intercepted by NewAssetScreen_OnAsset_Patch (calls SkipUpgrade instead
+            // of granting Ferry, which doesn't exist in the live asset pool).
+            // Ferry's assetIconGeos slot is null in this build, so the resulting
+            // NewAssetButton renders as a plain dark circle with no icon overlay.
+            if (stuck)
+            {
+                __result.Add(new UpgradeDefinition(AssetType.Ferry, 1));
+                stuck = false;
+            }
+            IsPickerStuck = stuck;
+        }
+    }
+
+    /// <summary>
+    /// After the upgrade panel is built, walk its buttons; if any is the Ferry
+    /// placeholder (from the GetAssets postfix above), swap its descriptor labels
+    /// so the player sees "Skip" instead of the localized Ferry strings.
+    /// </summary>
+    [HarmonyPatch(typeof(NewAssetScreen), "BuildAssetsPanel")]
+    internal static class NewAssetScreen_BuildAssets_Patch
+    {
+        private static readonly System.Reflection.FieldInfo F_NewAssetPanel =
+            AccessTools.Field(typeof(NewAssetScreen), "newAssetPanel");
+        private static readonly System.Reflection.FieldInfo F_PanelButtons =
+            AccessTools.Field(typeof(NewAssetPanel), "buttons");
+        private static readonly System.Reflection.FieldInfo F_ButtonDescriptor =
+            AccessTools.Field(typeof(NewAssetButton), "descriptor");
+        private static readonly System.Reflection.FieldInfo F_DescTitle =
+            AccessTools.Field(typeof(AssetDescriptor), "titleLabel");
+        private static readonly System.Reflection.FieldInfo F_DescDescription =
+            AccessTools.Field(typeof(AssetDescriptor), "descriptionLabel");
+
+        static void Postfix(NewAssetScreen __instance)
+        {
+            if (!(F_NewAssetPanel.GetValue(__instance) is NewAssetPanel panel)) return;
+            if (!(F_PanelButtons.GetValue(panel) is System.Collections.Generic.List<NewAssetButton> buttons)) return;
+            for (int i = 0; i < buttons.Count; i++)
+            {
+                var b = buttons[i];
+                if (b == null || b.Type != AssetType.Ferry) continue;
+                RelabelAsSkip(b);
+            }
+        }
+
+        private static void RelabelAsSkip(NewAssetButton button)
+        {
+            if (!(F_ButtonDescriptor.GetValue(button) is AssetDescriptor desc)) return;
+            var locale = LocaleDatabase.Instance.CurrentLocale;
+            if (F_DescTitle.GetValue(desc) is UI.Label title)
+                title.SetText(new LocalizedString(locale, "Skip"));
+            if (F_DescDescription.GetValue(desc) is UI.Label description)
+                description.SetText(new LocalizedString(locale, ""));
+        }
+    }
+
+    /// <summary>
+    /// Click handler interception. The Ferry placeholder isn't a real asset —
+    /// when the player clicks it, route to <see cref="State.SkipUpgrade"/> and
+    /// suppress the vanilla pick flow (which would try to grant a Ferry and
+    /// fail/no-op).
+    /// </summary>
+    [HarmonyPatch(typeof(NewAssetScreen), "OnAsset")]
+    internal static class NewAssetScreen_OnAsset_Patch
+    {
+        static bool Prefix(NewAssetButton button)
+        {
+            if (button == null || button.Type != AssetType.Ferry) return true;
+            State.SkipUpgrade();
+            return false;
         }
     }
 

@@ -51,23 +51,14 @@ public static partial class GameApi
     internal static float TrainSpeedMultiplier = 1f;
 
     /// <summary>
-    /// IMGUI rescue button — appears below the picker when the live upgrade panel has
-    /// no buttons to click. Calls <c>State.SkipUpgrade</c>, which advances to the next
-    /// pick or closes the picker if this was the last. Positioned at ~75% screen
-    /// height so it doesn't overlap the title (top) or the asset panel (centre).
+    /// IMGUI overlay slot. Previously rendered a fallback "Skip" button when the
+    /// upgrade picker was filtered empty; that's now handled in-game via the
+    /// Ferry-typed placeholder injected by <c>NewAssetScreen_GetAssets_Patch</c>
+    /// and relabeled by <c>NewAssetScreen_BuildAssets_Patch</c>. Kept empty so
+    /// future overlays have a hook to grow into.
     /// </summary>
     public static void OnGUI()
     {
-        if (!IsPickerStuck) return;
-        var g = CurrentGame;
-        if (g == null || g.Screen != GameScreen.NewAsset) return;
-
-        const float w = 200f, h = 40f;
-        var rect = new UnityEngine.Rect(
-            (UnityEngine.Screen.width - w) * 0.5f,
-            UnityEngine.Screen.height * 0.75f,
-            w, h);
-        if (UnityEngine.GUI.Button(rect, "Skip")) State.SkipUpgrade();
     }
 
     internal static void SetGame(Game game)
