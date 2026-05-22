@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using Archipelago.MultiClient.Net.Models;
 
 namespace client.Archipelago;
@@ -12,19 +11,21 @@ namespace client.Archipelago;
 ///     the upgrade picker's allowed-type filter (<c>AllowedPicks</c>). Without an
 ///     unlock, the corresponding type never appears in the upgrade panel; the
 ///     <c>Skip</c> button rescues a player whose panel ends up empty.
-///   * The shard counter is the only mutable state on this handler. <see cref="Reset"/>
-///     is invoked on (re)connect so shard progress doesn't survive a disconnect —
-///     the AP server replays all prior items on reconnect, which rebuilds the counts.
+///   * "<c>Progressive Map Shard</c>" is a single pooled item; each one received
+///     advances the counter, and crossing a multiple of <c>ShardsPerMap</c> unlocks
+///     the next city in <c>ArchipelagoData.UnlockableMaps</c> order.
+///   * Counter state is rebuilt on each (re)connect via <see cref="Reset"/> — the AP
+///     server replays all prior items, so the counter just runs forward from zero.
 /// </summary>
 public static class ItemHandler
 {
-    private const string ShardSuffix = " - Shard";
+    private const string ProgressiveShardName = "Progressive Map Shard";
 
-    /// <summary>City-internal-id → count of shards received so far this session.</summary>
-    private static readonly Dictionary<string, int> ShardCounts = new();
+    /// <summary>Total Progressive Map Shards received this session.</summary>
+    private static int ProgressiveShardCount;
 
     /// <summary>Drop shard progress so reconnect-replay rebuilds it from scratch.</summary>
-    public static void Reset() => ShardCounts.Clear();
+    public static void Reset() => ProgressiveShardCount = 0;
 
     /// <summary>
     /// Record an unlocked asset type. Writes the persistent <see cref="UnlockState"/>
@@ -76,41 +77,55 @@ public static class ItemHandler
             case "Delayed":    GameApi.State.DecrementWeek(1); break;
             case "Derailed":   GameApi.Take.DeleteTrain(); break;
 
+            // --- Progressive map unlock ---
+            case ProgressiveShardName: HandleProgressiveShard(); break;
+
             default:
-                if (item.ItemName.EndsWith(ShardSuffix))
-                    HandleShard(item.ItemName);
-                else
-                    Plugin.BepinLogger.LogWarning($"Unhandled AP item: {item.ItemName}");
+                Plugin.BepinLogger.LogWarning($"Unhandled AP item: {item.ItemName}");
                 break;
         }
     }
 
     /// <summary>
-    /// Tally a "<c>&lt;City&gt; - Shard</c>" item against the per-city counter; once the
-    /// player's holdings reach <see cref="ArchipelagoData.ShardsPerMap"/>, unlock that
-    /// city in the configured game mode via <see cref="MapApi.Grant.Unlock(string, GameMode)"/>.
-    /// Extra shards past the threshold are silently ignored.
+    /// Increment the global progressive-shard counter and, if the count just crossed
+    /// a multiple of <c>ShardsPerMap</c>, unlock the next city in
+    /// <c>ArchipelagoData.UnlockableMaps</c> order. Each shard takes the player one
+    /// step closer to the next map — the Nth (1-indexed) map unlocks at
+    /// <c>N × ShardsPerMap</c>. Extras past the last map are silently no-op.
     /// </summary>
-    private static void HandleShard(string itemName)
+    private static void HandleProgressiveShard()
     {
-        string display = itemName.Substring(0, itemName.Length - ShardSuffix.Length);
+        ProgressiveShardCount++;
+
+        int perMap = ArchipelagoClient.ServerData.ShardsPerMap;
+        if (perMap <= 0) perMap = 1; // defensive; should never happen
+        var unlockables = ArchipelagoClient.ServerData.UnlockableMaps;
+
+        // mapIndex = 0 means "haven't reached the first map's threshold yet";
+        // 1..unlockables.Count means "just earned the Nth map".
+        int mapIndex = ProgressiveShardCount / perMap;
+        int progressInto = ProgressiveShardCount % perMap;
+
+        Plugin.BepinLogger.LogInfo(
+            $"Progressive shards: {ProgressiveShardCount} total " +
+            $"(map {mapIndex}/{unlockables.Count}, {progressInto}/{perMap} toward next).");
+
+        // Only unlock on the exact threshold crossing — i.e., when this shard pushed
+        // the count to a multiple of perMap AND we're within the unlockable-maps range.
+        if (progressInto != 0) return;
+        if (mapIndex < 1 || mapIndex > unlockables.Count) return;
+
+        string display = unlockables[mapIndex - 1];
         string internalId = CityNames.ToInternal(display);
         if (internalId == null)
         {
-            Plugin.BepinLogger.LogWarning($"Shard for unknown city: '{display}'.");
+            Plugin.BepinLogger.LogWarning($"Progressive unlock target '{display}' not in CityNames bridge.");
             return;
         }
 
-        ShardCounts.TryGetValue(internalId, out int count);
-        ShardCounts[internalId] = ++count;
-
-        int threshold = ArchipelagoClient.ServerData.ShardsPerMap;
-        Plugin.BepinLogger.LogInfo($"Shard {display}: {count}/{threshold}.");
-
-        if (count == threshold)
-        {
-            MapApi.Grant.Unlock(internalId, ArchipelagoClient.ServerData.Mode);
-            Plugin.BepinLogger.LogMessage($"Unlocked {display} ({internalId}/{ArchipelagoClient.ServerData.Mode}).");
-        }
+        MapApi.Grant.Unlock(internalId, ArchipelagoClient.ServerData.Mode);
+        Plugin.BepinLogger.LogMessage(
+            $"Unlocked {display} ({internalId}/{ArchipelagoClient.ServerData.Mode}) — " +
+            $"map {mapIndex}/{unlockables.Count}.");
     }
 }

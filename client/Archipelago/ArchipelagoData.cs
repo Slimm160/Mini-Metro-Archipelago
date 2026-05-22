@@ -57,13 +57,17 @@ public class ArchipelagoData
 
     /// <summary>
     /// Number of <c>&lt;City&gt; - Shard</c> items the player must hold before the city
-    /// unlocks. Mirrors the apworld's formula at <c>MiniMetro.py:222</c>:
-    /// <c>max(max_weeks - (1 if max_weeks &lt; 5 else 2), 1)</c>.
+    /// unlocks. Prefer the apworld-resolved <c>shards_per_map</c> slot value (honors
+    /// the Map Shard Count Mode — Static vs Custom). Falls back to the original
+    /// Static-mode formula for compatibility with older apworld zips that don't
+    /// send this key.
     /// </summary>
     public int ShardsPerMap
     {
         get
         {
+            int fromSlot = GetInt("shards_per_map", -1);
+            if (fromSlot > 0) return fromSlot;
             int mw = MaxWeeks;
             int v = mw < 5 ? mw - 1 : mw - 2;
             return v < 1 ? 1 : v;
