@@ -84,9 +84,7 @@ public static partial class GameApi
         {
             if (__result == null) { IsPickerStuck = false; return; }
             if (AllowedPicks.Count > 0)
-                __result.RemoveAll(u => !AllowedPicks.Contains(u.Type));
-            // Locomotive panel (group 0) never offers Skip — locomotive grants
-            // are gated separately and must be claimed.
+                __result.RemoveAll(u => !State.IsPickAllowed(u.Type));
             IsPickerStuck = assetGroupIndex != 0 && __result.Count == 0;
         }
     }

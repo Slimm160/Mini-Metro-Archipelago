@@ -63,8 +63,47 @@ public static partial class GameApi
         public static int AssetAvailable(AssetType type) => Game?.AssetDatabase?.GetAvailableAssets(type) ?? 0;
         public static int AssetUsed(AssetType type)      => Game?.AssetDatabase?.GetChosenAssets(type) ?? 0;
 
-        /// <summary>The asset types currently allowed in upgrade picks (empty = vanilla pool).</summary>
-        public static System.Collections.Generic.IReadOnlyCollection<AssetType> AllowedPickTypes => AllowedPicks;
+        /// <summary>
+        /// The asset types currently allowed in upgrade picks (empty = no restriction).
+        /// Use <see cref="GetCurrentlyAllowedPickTypes"/> to also filter by capacity.
+        /// </summary>
+        public static System.Collections.Generic.IReadOnlyCollection<AssetType> AllowedPickTypes => AllowedPicks.Keys;
+
+        /// <summary>Max ownership cap for a type.</summary>
+        public static int GetMaxOwnership(AssetType type) =>
+            AllowedPicks.TryGetValue(type, out int cap) ? cap : -1;
+
+        /// <summary>Remaining slots before the cap.</summary>
+        public static int GetRemainingCapacity(AssetType type)
+        {
+            if (!AllowedPicks.TryGetValue(type, out int cap) || cap < 0)
+            {
+                return -1;                
+            }
+            return System.Math.Max(0, cap - AssetTotal(type));
+        }
+
+        /// <summary>True if asset type be offered now.</summary>
+        public static bool IsPickAllowed(AssetType type)
+        {
+            if (AllowedPicks.Count == 0) return true;
+            if (!AllowedPicks.TryGetValue(type, out int cap)) return false;
+            return cap < 0 || AssetTotal(type) < cap;
+        }
+
+        /// <summary>
+        /// Asset types the picker is allowed to offer right now after caps.
+        /// Returns null when no restriction in effect.
+        /// </summary>
+        public static System.Collections.Generic.List<AssetType> GetCurrentlyAllowedPickTypes()
+        {
+            if (AllowedPicks.Count == 0) return null;
+            var result = new System.Collections.Generic.List<AssetType>(AllowedPicks.Count);
+            foreach (var kv in AllowedPicks)
+                if (kv.Value == -1 || AssetTotal(kv.Key) < kv.Value)
+                    result.Add(kv.Key);
+            return result;
+        }
 
         // --- Passenger counts --------------------------------------------
 

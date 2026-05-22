@@ -35,6 +35,17 @@ public static class DevPanel
         [AssetType.Shinkansen] = false,
     };
 
+    private static readonly Dictionary<AssetType, string> LimitCountStrings = new()
+    {
+        [AssetType.Locomotive] = "1",
+        [AssetType.Carriage] = "1",
+        [AssetType.Line] = "1",
+        [AssetType.Interchange] = "1",
+        [AssetType.Crossing] = "1",
+        [AssetType.Tram] = "1",
+        [AssetType.Shinkansen] = "1",
+    };
+
     public static void Awake()
     {
         if (initialized) return;
@@ -93,16 +104,37 @@ public static class DevPanel
         if (GUILayout.Button("Pick +3")) GameApi.Grant.UpgradePick(3);
         GUILayout.EndHorizontal();
 
-        GUILayout.Label("Limit pool:");
+        GUILayout.Label("Limit pool (toggle + max count):");
         foreach (var key in new List<AssetType>(LimitToggles.Keys))
-            LimitToggles[key] = GUILayout.Toggle(LimitToggles[key], key.ToString());
+        {
+            GUILayout.BeginHorizontal();
+            LimitToggles[key] = GUILayout.Toggle(LimitToggles[key], key.ToString(), GUILayout.Width(100));
+            if (LimitToggles[key])
+            {
+                LimitCountStrings[key] = GUILayout.TextField(LimitCountStrings[key], GUILayout.Width(40));
+            }
+            else
+            {
+                GUILayout.Space(40);
+            }
+            GUILayout.EndHorizontal();
+        }
 
         GUILayout.BeginHorizontal();
         if (GUILayout.Button("Apply Limit"))
         {
-            var allowed = new List<AssetType>();
-            foreach (var kv in LimitToggles) if (kv.Value) allowed.Add(kv.Key);
-            GameApi.Grant.LimitPicksTo(allowed.ToArray());
+            var limits = new List<(AssetType Type, int MaxCount)>();
+            foreach (var kv in LimitToggles)
+            {
+                if (kv.Value)
+                {
+                    int maxCount = 1;
+                    if (LimitCountStrings.TryGetValue(kv.Key, out string str) && !int.TryParse(str, out maxCount))
+                        maxCount = 0; // fallback to 0 (no picks allowed) on invalid input
+                    limits.Add((kv.Key, maxCount));
+                }
+            }
+            GameApi.Grant.LimitPicksTo(limits.ToArray());
         }
         if (GUILayout.Button("Clear Limit")) GameApi.Grant.ClearPickLimit();
         GUILayout.EndHorizontal();

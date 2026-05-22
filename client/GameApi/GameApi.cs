@@ -19,11 +19,12 @@ public static partial class GameApi
     internal static int LastSeenWeek = -1;
 
     /// <summary>
-    /// If non-empty, every upgrade picker that opens for this run is forced to present
-    /// only these <see cref="AssetType"/> options (set per-picker via <c>Game.ForcedAssets</c>
-    /// in <c>NewAssetScreen.HandleTransitionIn</c>).
+    /// If non‑empty, every upgrade picker that opens for this run is forced to present only the asset
+    /// types present (the dictionary keys), respecting the maximum number of that asset the player
+    /// may own (the dictionary value). Use <c>-1</c> to mean "no limit".
+    /// (Set per‑picker via <c>Game.ForcedAssetPicks</c> in <c>NewAssetScreen.HandleTransitionIn</c>.)
     /// </summary>
-    internal static readonly System.Collections.Generic.HashSet<AssetType> AllowedPicks = new();
+    internal static readonly System.Collections.Generic.Dictionary<AssetType, int> AllowedPicks = new();
 
     /// <summary>
     /// Set by the <c>NewAssetScreen.GetAssets</c> postfix when the panel about to be
@@ -33,6 +34,7 @@ public static partial class GameApi
     /// </summary>
     internal static bool IsPickerStuck;
 
+    /// TODO: remove / unimplemented
     /// <summary>
     /// Scales the live <c>City.PeepSpawnScale</c> via a Harmony postfix. 1.0 = vanilla;
     /// higher values produce proportionally more peeps per station per hour. Resets to
@@ -40,6 +42,7 @@ public static partial class GameApi
     /// </summary>
     internal static float PeepSpawnMultiplier = 1f;
 
+    /// TODO: remove / unimplemented
     /// <summary>
     /// Scales the live <c>LocomotiveDefinition.Speed</c> getter via a Harmony postfix.
     /// 1.0 = vanilla. Affects every locomotive type (Locomotive/Tram/Shinkansen)

@@ -215,8 +215,9 @@ public class ArchipelagoClient
         // Re-seed the picker filter directly (we're already on the main thread; the
         // dispatched LimitPicksTo would queue for next frame, leaving a one-frame
         // window where the picker is unfiltered).
+        // TODO: actually apply correct limits 
         GameApi.AllowedPicks.Clear();
-        foreach (var t in UnlockState.Unlocked) GameApi.AllowedPicks.Add(t);
+        foreach (var t in UnlockState.Unlocked) GameApi.AllowedPicks[t] = -1;
 
         // Strip starting inventory for types the player hasn't unlocked AND that
         // aren't on the keep-initial list (e.g., Carriage, Interchange, Shinkansen).

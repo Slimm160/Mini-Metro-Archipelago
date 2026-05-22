@@ -44,37 +44,84 @@ public static partial class GameApi
 
         /// <summary>
         /// Restrict every upgrade picker for the rest of this run to only present these
-        /// asset types. Persistent — re-applied on each picker open via a Harmony prefix
+        /// asset types, with an optional per‑type ownership cap. Use -1 for unlimited.
+        /// Persistent — re‑applied on each picker open via a Harmony prefix
         /// on <c>NewAssetScreen.HandleTransitionIn</c>. Cleared automatically on game end.
-        /// Pass an empty list (or call <see cref="ClearPickLimit"/>) to return to vanilla.
+        /// Pass an empty array (or call <see cref="ClearPickLimit"/>) to return to vanilla.
         /// </summary>
-        public static void LimitPicksTo(params AssetType[] types)
+        public static void LimitPicksTo(params (AssetType Type, int MaxCount)[] limits)
         {
             MainThreadDispatcher.Enqueue(() =>
             {
                 AllowedPicks.Clear();
-                if (types != null) foreach (var t in types) AllowedPicks.Add(t);
-                Plugin.BepinLogger.LogInfo(AllowedPicks.Count == 0
-                    ? "Pick limit cleared."
-                    : $"Pick pool limited to: {string.Join(", ", AllowedPicks)}");
+                if (limits != null)
+                    foreach (var (type, maxCount) in limits)
+                        AllowedPicks[type] = maxCount;
+                
+                if (AllowedPicks.Count == 0)
+                    Plugin.BepinLogger.LogInfo("Pick limit cleared.");
+                else
+                {
+                    var items = new System.Collections.Generic.List<string>();
+                    foreach (var kv in AllowedPicks)
+                        items.Add($"{kv.Key} (max {kv.Value})");
+                    Plugin.BepinLogger.LogInfo($"Pick pool limited to: {string.Join(", ", items)}");
+                }
             });
         }
 
+        /// <summary>
+        /// Convenience overload that sets no limit (-1) on all given asset types.
+        /// </summary>
+        public static void LimitPicksTo(params AssetType[] types)
+        {
+            if (types == null || types.Length == 0) 
+            { 
+                ClearPickLimit(); 
+                return; 
+            }
+            var limits = new (AssetType Type, int MaxCount)[types.Length];
+            for (int i = 0; i < types.Length; i++)
+            {
+                limits[i] = (types[i], -1);
+            }
+            LimitPicksTo(limits);
+        }
+
         /// <summary>Return the upgrade picker to its vanilla random pool.</summary>
-        public static void ClearPickLimit() => LimitPicksTo();
+        public static void ClearPickLimit() => LimitPicksTo(new (AssetType, int)[0]);
 
         /// <summary>
-        /// Add a single asset type to the upgrade picker's allowed set without
+        /// Add a single asset type with a max ownership cap (-1 = unlimited) without
         /// clearing what was already there. Idempotent — calling with a type that's
         /// already permitted is a no-op. Used to drive incremental unlocks from AP.
         /// </summary>
-        public static void AllowPickType(AssetType type)
+        public static void AllowPickType(AssetType type, int maxCount)
         {
             MainThreadDispatcher.Enqueue(() =>
             {
-                if (AllowedPicks.Add(type))
-                    Plugin.BepinLogger.LogInfo($"Pick pool +{type} → {{{string.Join(", ", AllowedPicks)}}}.");
+                bool wasNew = !AllowedPicks.ContainsKey(type);
+                AllowedPicks[type] = maxCount;
+                if (wasNew || AllowedPicks[type] != maxCount)
+                {
+                var items = new System.Collections.Generic.List<string>();
+                foreach (var kv in AllowedPicks)
+                    items.Add($"{kv.Key} (max {kv.Value})");
+
+                string capStr = maxCount == -1 ? "unlimited" : $"max {maxCount}";
+                string dictStr = $"{{{string.Join(", ", items)}}}";                    
+                                Plugin.BepinLogger.LogInfo(
+                    $"Pick pool {(wasNew ? "+" : "~")}{type} ({capStr}) → {dictStr}.");
+                }
             });
+        }
+
+        /// <summary>
+        /// Convenience overload that sets no limit (-1) on given asset type.
+        /// </summary>
+        public static void AllowPickType(AssetType type)
+        {
+            AllowPickType(type, -1);
         }
     }
 }
