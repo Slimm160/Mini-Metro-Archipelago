@@ -9,7 +9,7 @@ namespace client;
 [BepInPlugin(PluginGUID, PluginName, PluginVersion)]
 public class Plugin : BaseUnityPlugin
 {
-    public const string PluginGUID = "com.yourName.projectName";
+    public const string PluginGUID = "com.Slimm.MiniMetroArchipelagoClient";
     public const string PluginName = "client";
     public const string PluginVersion = "1.0.0";
 
@@ -23,7 +23,9 @@ public class Plugin : BaseUnityPlugin
         BepinLogger = Logger;
         ArchipelagoClient = new ArchipelagoClient();
         ArchipelagoConsole.Awake();
-        Patcher.Apply();
+        // Defer real Harmony patches until after Mini Metro builds FontDatabase —
+        // see comment in Patcher.cs for the font-init race this avoids.
+        Patcher.ScheduleApply();
         DevPanel.Awake();
 
         ArchipelagoConsole.LogMessage($"{ModDisplayInfo} loaded!");
@@ -36,6 +38,15 @@ public class Plugin : BaseUnityPlugin
 
     private void OnGUI()
     {
+        // Diagnostic: when the upgrade picker is open, skip ALL IMGUI rendering
+        // (mod label, status, console, dev panel, etc.). If the "ee" title
+        // corruption still appears with all IMGUI suppressed, the cause isn't an
+        // overlay — it's inside Futile's text/font path. Otherwise the culprit is
+        // one of the elements below this gate.
+        if (GameApi.State.IsInGame && GameApi.State.Game != null &&
+            GameApi.State.Game.Screen == GameScreen.NewAsset)
+            return;
+
         // show the mod is currently loaded in the corner
         GUI.Label(new Rect(16, 16, 300, 20), ModDisplayInfo);
         ArchipelagoConsole.OnGUI();
@@ -76,7 +87,7 @@ public class Plugin : BaseUnityPlugin
             }
         }
         // this is a good place to create and add a bunch of debug buttons
-        DevPanel.OnGUI();  // hidden — uncomment to surface the developer testing overlay
+        // DevPanel.OnGUI();  // hidden — uncomment to surface the developer testing overlay
         GameApi.OnGUI();
     }
 }
