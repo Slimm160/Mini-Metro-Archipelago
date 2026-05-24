@@ -54,7 +54,7 @@ MAPS = {
 ITEMS = {
     "Interchange - Unlock": ItemClassification.progression,
     "Shinkansen - Unlock": ItemClassification.progression,
-    "Tunnel/Bridge - Unlock": ItemClassification.progression.early,
+    "Tunnel/Bridge - Unlock": ItemClassification.progression,
     "Carriage - Unlock": ItemClassification.progression,
 }
 
@@ -195,6 +195,8 @@ class MiniMetroWorld(World):
         self.random.shuffle(maps_list)
         self.starting_maps = maps_list[:num_starting]
         self.unlockable_maps = maps_list[num_starting:]
+        self.multiworld.early_items[self.player]["Tunnel/Bridge - Unlock"] = 1
+        self.multiworld.early_items[self.player]["New Line - Unlock"] = 1
 
     def resolved_shards_per_map(self) -> int:
         """determines the shard count based on the selected mode."""
