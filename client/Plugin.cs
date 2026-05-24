@@ -23,8 +23,6 @@ public class Plugin : BaseUnityPlugin
         BepinLogger = Logger;
         ArchipelagoClient = new ArchipelagoClient();
         ArchipelagoConsole.Awake();
-        // Defer real Harmony patches until after Mini Metro builds FontDatabase —
-        // see comment in Patcher.cs for the font-init race this avoids.
         Patcher.ScheduleApply();
         DevPanel.Awake();
 
@@ -38,19 +36,11 @@ public class Plugin : BaseUnityPlugin
 
     private void OnGUI()
     {
-        // Diagnostic: when the upgrade picker is open, skip ALL IMGUI rendering
-        // (mod label, status, console, dev panel, etc.). If the "ee" title
-        // corruption still appears with all IMGUI suppressed, the cause isn't an
-        // overlay — it's inside Futile's text/font path. Otherwise the culprit is
-        // one of the elements below this gate.
         if (GameApi.State.IsInGame && GameApi.State.Game != null &&
             GameApi.State.Game.Screen == GameScreen.NewAsset)
             return;
-
-        // show the mod is currently loaded in the corner
         GUI.Label(new Rect(16, 16, 300, 20), ModDisplayInfo);
         ArchipelagoConsole.OnGUI();
-
         string statusMessage;
         // show the Archipelago Version and whether we're connected or not
         if (ArchipelagoClient.Authenticated)
@@ -78,15 +68,12 @@ public class Plugin : BaseUnityPlugin
                 ArchipelagoClient.ServerData.SlotName);
             ArchipelagoClient.ServerData.Password = GUI.TextField(new Rect(150, 110, 150, 20),
                 ArchipelagoClient.ServerData.Password);
-
-            // requires that the player at least puts *something* in the slot name
             if (GUI.Button(new Rect(16, 130, 100, 20), "Connect") &&
                 !ArchipelagoClient.ServerData.SlotName.IsNullOrWhiteSpace())
             {
                 ArchipelagoClient.Connect();
             }
         }
-        // this is a good place to create and add a bunch of debug buttons
         // DevPanel.OnGUI();  // hidden — uncomment to surface the developer testing overlay
         GameApi.OnGUI();
     }

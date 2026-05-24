@@ -198,9 +198,9 @@ class MiniMetroWorld(World):
 
     def resolved_shards_per_map(self) -> int:
         """determines the shard count based on the selected mode."""
-        if int(self.options.map_shard_mode.value) == 1: 
-            return int(self.options.custom_shard_count.value)
         mw = int(self.options.max_weeks.value)
+        if int(self.options.map_shard_mode.value) == 1:
+            return min(int(self.options.custom_shard_count.value), mw - 1)
         return max(mw - 1 if mw < 5 else mw - 2, 1)
     
     def create_regions(self):
