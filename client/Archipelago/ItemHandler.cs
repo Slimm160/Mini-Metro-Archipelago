@@ -40,27 +40,11 @@ public static class ItemHandler
         GameApi.Grant.AllowPickType(type);
     }
 
-    private static void increaseLimit(AssetType type, int amount)
-    {
-        switch (type)
-        {
-            case AssetType.Line:       GameApi.Grant.LineLimit(amount); break;
-            case AssetType.Interchange: GameApi.Grant.InterchangeLimit(amount); break;
-            case AssetType.Shinkansen:  GameApi.Grant.ShinkansenLimit(amount); break;
-            case AssetType.Crossing:    GameApi.Grant.CrossingLimit(amount); break;
-            case AssetType.Bridge:      GameApi.Grant.BridgeLimit(amount); break;
-            case AssetType.Carriage:    GameApi.Grant.CarriageLimit(amount); break;
-            default:
-                Plugin.BepinLogger.LogWarning($"Can't increase limit for {type} — unrecognized asset type.");
-                break;
-        }
-    }
-
     private static void IncreaseLimit(AssetType type)
     {
-        Unlock(type);
+        UnlockState.Add(type);
         currentLimit++;
-        increaseLimit(type, currentLimit);
+        GameApi.Grant.AllowPickType(type, currentLimit);
     }
 
     public static void Handle(ItemInfo item)
