@@ -24,6 +24,8 @@ public static class ItemHandler
     /// <summary>Total Progressive Map Shards received this session.</summary>
     private static int ProgressiveShardCount;
 
+    private static int currentLimit = 0; // tracked to know how much to increase on each "New Line - Unlock"
+
     /// <summary>Drop shard progress so reconnect-replay rebuilds it from scratch.</summary>
     public static void Reset() => ProgressiveShardCount = 0;
 
@@ -36,6 +38,29 @@ public static class ItemHandler
     {
         UnlockState.Add(type);
         GameApi.Grant.AllowPickType(type);
+    }
+
+    private static void increaseLimit(AssetType type, int amount)
+    {
+        switch (type)
+        {
+            case AssetType.Line:       GameApi.Grant.LineLimit(amount); break;
+            case AssetType.Interchange: GameApi.Grant.InterchangeLimit(amount); break;
+            case AssetType.Shinkansen:  GameApi.Grant.ShinkansenLimit(amount); break;
+            case AssetType.Crossing:    GameApi.Grant.CrossingLimit(amount); break;
+            case AssetType.Bridge:      GameApi.Grant.BridgeLimit(amount); break;
+            case AssetType.Carriage:    GameApi.Grant.CarriageLimit(amount); break;
+            default:
+                Plugin.BepinLogger.LogWarning($"Can't increase limit for {type} — unrecognized asset type.");
+                break;
+        }
+    }
+
+    private static void IncreaseLimit(AssetType type)
+    {
+        Unlock(type);
+        currentLimit++;
+        increaseLimit(type, currentLimit);
     }
 
     public static void Handle(ItemInfo item)
@@ -54,7 +79,7 @@ public static class ItemHandler
             // Each unlock writes to BOTH UnlockState (persistent across map opens,
             // re-applied on every GameStarted) and the live AllowedPicks via
             // AllowPickType (so a mid-run unlock takes effect on the next picker).
-            case "New Line - Unlock":     Unlock(AssetType.Line); break;
+            case "New Line - Unlock":     IncreaseLimit(AssetType.Line); break;
             case "Interchange - Unlock":  Unlock(AssetType.Interchange); break;
             case "Shinkansen - Unlock":   Unlock(AssetType.Shinkansen); break;
             case "Tunnel/Bridge - Unlock":

@@ -10,9 +10,9 @@ namespace client.Archipelago;
 /// Forwards in-game week progression to the AP server as location checks.
 ///
 /// One AP location per (city, week) pair, named <c>"&lt;Display&gt; - Week N"</c>. We hook
-/// <see cref="GameApi.Events.GameStarted"/> to catch Week 1 (which the
-/// <c>WeekChanged</c> poll skips — see <c>Game_Update_Patch</c>) and
-/// <see cref="GameApi.Events.WeekChanged"/> for the 2→3→4… transitions.
+/// <see cref="GameApi.Events.GameStarted"/> to fire the AP "Week 1" check the
+/// moment the map opens, and <see cref="GameApi.Events.WeekChanged"/> for every
+/// subsequent week transition.
 ///
 /// Victory: once the player has reached <c>TargetWeek</c> on <c>MapsToComplete</c>
 /// distinct cities, send a <c>ClientGoal</c> status update. The check runs after
@@ -38,23 +38,31 @@ public class LocationHandler : IDisposable
         // check still run against the full history.
         foreach (long id in data.CheckedLocations) sentThisSession.Add(id);
 
+        GameApi.Events.GameStarted += OnGameStarted;
         GameApi.Events.WeekChanged += OnWeekChanged;
     }
 
     public void Dispose()
     {
+        GameApi.Events.GameStarted -= OnGameStarted;
         GameApi.Events.WeekChanged -= OnWeekChanged;
     }
 
     /// <summary>
-    /// The HUD displays "Week N" where <c>N = Clock.ClosestWeek + 1</c> (see
-    /// <c>NewAssetScreen.cs:108</c>), and <c>Game.Week</c> mirrors the 0-based
-    /// <c>Clock.Week</c>. So when the player completes the first scoring milestone
-    /// (HUD "Week 1" → "Week 2"), <c>Game.Week</c> transitions 0 → 1 and we want to
-    /// fire the AP "<c>Week 1</c>" check. Sending <paramref name="week"/> directly
-    /// gives that mapping.
+    /// Map just opened (HUD shows "Week 1", <c>Game.Week == 0</c>) — fire the
+    /// AP "Week 1" check immediately so the first check no longer requires the
+    /// player to finish a full week first.
     /// </summary>
-    private void OnWeekChanged(Game g, int week) => TrySend(g, week);
+    private void OnGameStarted(Game g) => TrySend(g, 1);
+
+    /// <summary>
+    /// The HUD displays "Week N" where <c>N = Clock.ClosestWeek + 1</c>, and
+    /// <c>Game.Week</c> mirrors the 0-based <c>Clock.Week</c>. So when
+    /// <c>Game.Week</c> transitions 1 → 2 (HUD "Week 2" → "Week 3"), we want
+    /// to fire the AP "<c>Week 3</c>" check — i.e., <c>week + 1</c>. The Week 1
+    /// check is sent separately by <see cref="OnGameStarted"/>.
+    /// </summary>
+    private void OnWeekChanged(Game g, int week) => TrySend(g, week + 1);
 
     private void TrySend(Game g, int week)
     {
