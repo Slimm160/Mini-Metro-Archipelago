@@ -112,24 +112,18 @@ Mini Metro:
     random-range-3-10: 0 # random value between 3 and 10
 
   game_mode:
-    # Game mode to play.
-    #
-    # **Classic:** Standard Mini Metro rules.
-    #
-    # **Extreme:** Lines cannot be redrawn after being placed.
+    # Game mode to play:
+    # Classic: Standard Mini Metro rules.
+    # Extreme: Lines cannot be redrawn after being placed.
     classic: 50
     extreme: 0
 
   trap_chance:
-    # Percentage of filler items replaced with traps.
-    #
-    # **Rush Hour:** Passengers spawn at a faster rate.
-    #
-    # **Renovation:** Your lines get removed and you must rebuild them from scratch.
-    #
-    # **Delays:** You go back to the previous day.
-    #
-    # **Rerailed:** One of your trains gets removed.
+    # Percentage of filler items replaced with traps:
+    # Rush Hour: A station gets overcrowded.
+    # Renovation: Your lines get removed and you must rebuild them from scratch.
+    # Delayed: Your next week is delayed by another week.
+    # Derailed: One of your trains gets permanently removed.
     #
     # You can define additional values between the minimum and maximum values.
     # Minimum value is 0
@@ -139,6 +133,26 @@ Mini Metro:
     random-low: 0 # random value weighted towards lower values
     random-high: 0 # random value weighted towards higher values
     random-range-0-100: 0 # random value between 0 and 100
+
+  map_shard_mode:
+    # How many shards the player must collect to unlock each map.
+    # Static: pre-calculated from Max Weeks (max(max_weeks - 1 if max_weeks < 5 else max_weeks - 2, 1)).
+    # Custom: use the value of Custom Shard Count below.
+    static: 50
+    custom: 0
+
+  custom_shard_count:
+    # Shards required per map when Map Shard Count Mode is set to Custom. Ignored
+    # in Static mode. Higher values mean longer per-map gating between unlocks.
+    #
+    # You can define additional values between the minimum and maximum values.
+    # Minimum value is 1
+    # Maximum value is 10
+    5: 50
+    random: 0
+    random-low: 0 # random value weighted towards lower values
+    random-high: 0 # random value weighted towards higher values
+    random-range-1-10: 0 # random value between 1 and 10
 
   death_link:
     # When you die, everyone who enabled death link dies. Of course, the reverse is true too.
