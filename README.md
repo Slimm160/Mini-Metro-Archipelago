@@ -19,8 +19,6 @@ In the top left corner, you will see the archipelago login, put in your host nam
 - Alongside this, do not interact with the Steam Workshop or the Daily Challenge as these are not connected to the Archipelago.
 
 # Known Issues
-- On level-up you will see that instead of saying the week, it says "ee" we are diagnosing the issue. Other UI elements are yet to be implemented
-- Balance and item distribution are a work in progress and some progression edge cases may softlock runs
-- Desyncs may occasionally occur during reconnects
+- TBD
 
 *All future known bugs will be added here. This is a reminder that this is in a very early alpha and to report bugs to the developer asap.*
