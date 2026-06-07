@@ -24,8 +24,6 @@ public static class ItemHandler
     /// <summary>Total Progressive Map Shards received this session.</summary>
     private static int ProgressiveShardCount;
 
-    private static int currentLimit = 0; // tracked to know how much to increase on each "New Line - Unlock"
-
     /// <summary>Drop shard progress so reconnect-replay rebuilds it from scratch.</summary>
     public static void Reset() => ProgressiveShardCount = 0;
 
@@ -40,11 +38,19 @@ public static class ItemHandler
         GameApi.Grant.AllowPickType(type);
     }
 
+    /// <summary>
+    /// Each "New Line - Unlock" lets the player own one more Line than the city would
+    /// normally provide. Mid-run we bump the live cap by 1 from whatever's currently
+    /// in effect; on the next GameStarted, the cap is recomputed authoritatively as
+    /// <c>startingLines + LineUnlockCount</c> (see <c>OnGameStartedApplyUnlocks</c>).
+    /// </summary>
     private static void IncreaseLimit(AssetType type)
     {
-        UnlockState.Add(type);
-        currentLimit++;
-        GameApi.Grant.AllowPickType(type, currentLimit);
+        UnlockState.LineUnlockCount++;
+        int oldCap = GameApi.State.GetMaxOwnership(type);
+        int newCap = oldCap < 0 ? GameApi.State.AssetTotal(type) + 1 : oldCap + 1;
+        UnlockState.Add(type, newCap);
+        GameApi.Grant.AllowPickType(type, newCap);
     }
 
     public static void Handle(ItemInfo item)

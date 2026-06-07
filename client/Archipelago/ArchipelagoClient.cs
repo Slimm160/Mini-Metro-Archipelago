@@ -212,12 +212,21 @@ public class ArchipelagoClient
     /// </summary>
     private static void OnGameStartedApplyUnlocks(Game game)
     {
+        // Recompute Line cap from this city's starting line count + accumulated unlocks.
+        // Each city has different starting lines (London=3, Paris=3, etc.) and starting
+        // lines are kept via KeepInitialTypes, so without this adjustment they'd eat the
+        // player's unlocks (e.g., cap=1 with 3 starting lines = Line not pickable).
+        if (UnlockState.LineUnlockCount > 0)
+        {
+            int startingLines = game?.AssetDatabase?.GetTotalAssets(AssetType.Line) ?? 0;
+            UnlockState.Add(AssetType.Line, startingLines + UnlockState.LineUnlockCount);
+        }
+
         // Re-seed the picker filter directly (we're already on the main thread; the
         // dispatched LimitPicksTo would queue for next frame, leaving a one-frame
         // window where the picker is unfiltered).
-        // TODO: actually apply correct limits 
         GameApi.AllowedPicks.Clear();
-        foreach (var t in UnlockState.Unlocked) GameApi.AllowedPicks[t] = -1;
+        foreach (var kv in UnlockState.Unlocked) GameApi.AllowedPicks[kv.Key] = kv.Value;
 
         // Strip starting inventory for types the player hasn't unlocked AND that
         // aren't on the keep-initial list (e.g., Carriage, Interchange, Shinkansen).
@@ -236,6 +245,11 @@ public class ArchipelagoClient
     private void TearDownState()
     {
         GameApi.Events.GameStarted -= OnGameStartedApplyUnlocks;
+        // Drop the item-stream cursor so the next connect replays every item from
+        // index 0 and rebuilds UnlockState/LineUnlockCount/ProgressiveShardCount from
+        // scratch. Without this, reconnecting in the same process keeps the old
+        // cursor and the suppressed replay leaves the counters at 0.
+        ServerData.Index = 0;
         MainThreadDispatcher.Enqueue(() =>
         {
             MapApi.State.IsActive = false;

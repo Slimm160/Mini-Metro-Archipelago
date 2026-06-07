@@ -17,18 +17,36 @@ public static class UnlockState
 {
     private static readonly AssetType[] Baseline = { AssetType.Locomotive, AssetType.Tram };
 
-    /// <summary>The full set the upgrade picker should be filtered against this run.</summary>
-    public static readonly HashSet<AssetType> Unlocked = new(Baseline);
+    /// <summary>
+    /// Persistent unlocked types and their per-type ownership cap (-1 = unlimited).
+    /// Re-seeded into <c>GameApi.AllowedPicks</c> on every GameStarted, so the cap
+    /// must live here — anything stored only in <c>AllowedPicks</c> is wiped by SetGame.
+    /// </summary>
+    public static readonly Dictionary<AssetType, int> Unlocked = new();
+
+    /// <summary>
+    /// Total "New Line - Unlock" items received this session. Authoritative cap is
+    /// recomputed at each GameStarted as <c>city's starting line count + LineUnlockCount</c>
+    /// — starting lines are kept via <c>KeepInitialTypes</c> and would otherwise eat
+    /// the player's unlocks.
+    /// </summary>
+    public static int LineUnlockCount;
+
+    static UnlockState() => Reset();
 
     /// <summary>Drop all unlocks and return to the baseline set. Called on (re)connect.</summary>
     public static void Reset()
     {
         Unlocked.Clear();
-        foreach (var t in Baseline) Unlocked.Add(t);
+        foreach (var t in Baseline) Unlocked[t] = -1;
+        LineUnlockCount = 0;
     }
 
-    /// <summary>Add an asset type to the persistent unlocked set. Returns true if it wasn't already there.</summary>
-    public static bool Add(AssetType type) => Unlocked.Add(type);
+    /// <summary>
+    /// Add or update the per-type cap (-1 = unlimited). Last write wins, so repeat
+    /// "New Line - Unlock" items can bump the cap upward.
+    /// </summary>
+    public static void Add(AssetType type, int maxCount = -1) => Unlocked[type] = maxCount;
 
-    public static bool Contains(AssetType type) => Unlocked.Contains(type);
+    public static bool Contains(AssetType type) => Unlocked.ContainsKey(type);
 }
