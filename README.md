@@ -6,7 +6,7 @@
 
 # Installation
 
-Installation is simple! Just unzip the Archipelago Mod into the Mini Metro Folder. You can find your local files by going to your Games Settings -> Manage -> Browse Local Files.
+Installation is simple! Just unzip the Archipelago Mod and move the contents into the Mini Metro File Directory. You can find your local files by going to your Games Settings -> Manage -> Browse Local Files.
 
 This build already has BepinEx installed and configured so everything should work smoothly!
 
