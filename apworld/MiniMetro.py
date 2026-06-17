@@ -182,6 +182,7 @@ class MiniMetroWorld(World):
         super().__init__(multiworld, player)
         self.starting_maps: List[str] = []
         self.unlockable_maps: List[str] = []
+        self.map_regions = {}
 
     @classmethod
     def stage_assert_generate(cls, multiworld: MultiWorld):
@@ -196,7 +197,6 @@ class MiniMetroWorld(World):
         self.starting_maps = maps_list[:num_starting]
         self.unlockable_maps = maps_list[num_starting:]
         self.multiworld.early_items[self.player]["Tunnel/Bridge - Unlock"] = 1
-        self.multiworld.early_items[self.player]["New Line - Unlock"] = 1
 
     def resolved_shards_per_map(self) -> int:
         """determines the shard count based on the selected mode."""
@@ -206,34 +206,40 @@ class MiniMetroWorld(World):
         return max(mw - 1 if mw < 5 else mw - 2, 1)
     
     def create_regions(self):
-        """Create regions for Mini Metro - one per available map"""
+        """Create regions for Mini Metro - early/late split per available map"""
         menu_region = Region("Menu", self.player, self.multiworld)
         self.multiworld.regions.append(menu_region)
         max_weeks = int(self.options.max_weeks.value)
-        regions = {}
         available_maps = self.starting_maps + self.unlockable_maps
+        has_late = max_weeks > 5
         for map_name in available_maps:
-            region = Region(map_name, self.player, self.multiworld)
-            regions[map_name] = region
-            self.multiworld.regions.append(region)            
+            early_region = Region(f"{map_name} - Early", self.player, self.multiworld)
+            self.multiworld.regions.append(early_region)
+            late_region = None
+            if has_late:
+                late_region = Region(f"{map_name} - Late", self.player, self.multiworld)
+                self.multiworld.regions.append(late_region)
+            self.map_regions[map_name] = (early_region, late_region)
             for week in range(1, max_weeks + 1):
                 location_name = f"{map_name} - Week {week}"
                 if location_name in self.location_name_to_id:
+                    target_region = early_region if week <= 5 else late_region
                     location = MiniMetroLocation(
                         self.player,
                         location_name,
                         self.location_name_to_id[location_name],
-                        region
+                        target_region
                     )
-                    region.locations.append(location)        
-        for map_name in self.starting_maps:
+                    target_region.locations.append(location)
+        for map_name in available_maps:
+            early_region, late_region = self.map_regions[map_name]
             entrance = Entrance(self.player, f"Access {map_name}", menu_region)
             menu_region.exits.append(entrance)
-            entrance.connect(regions[map_name])        
-        for map_name in self.unlockable_maps:
-            entrance = Entrance(self.player, f"Access {map_name}", menu_region)
-            menu_region.exits.append(entrance)
-            entrance.connect(regions[map_name])
+            entrance.connect(early_region)
+            if late_region is not None:
+                late_entrance = Entrance(self.player, f"Access {map_name} - Late", early_region)
+                early_region.exits.append(late_entrance)
+                late_entrance.connect(late_region)
     
     def create_items(self):
         """Create items for Mini Metro"""
@@ -292,6 +298,16 @@ class MiniMetroWorld(World):
         """Set access rules for locations"""
         available_maps = self.starting_maps + self.unlockable_maps
         max_weeks = int(self.options.max_weeks.value)
+        for map_name in available_maps:
+            _, late_region = self.map_regions[map_name]
+            if late_region is None:
+                continue
+            gate_location = f"{map_name} - Week 5"
+            if gate_location in self.location_name_to_id:
+                set_rule(
+                    self.multiworld.get_entrance(f"Access {map_name} - Late", self.player),
+                    lambda state, loc=gate_location: state.can_reach_location(loc, self.player)
+                )
         for map_name in available_maps:
             for week in range(2, max_weeks + 1):
                 prev_location = f"{map_name} - Week {week - 1}"
