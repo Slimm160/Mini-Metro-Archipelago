@@ -51,6 +51,12 @@ MAPS = {
     "Auckland": 34
 }
 
+_MAP_ID_TO_NAME = {v: k for k, v in MAPS.items()}
+def _map_option_name(name: str) -> str:
+    """Turn a display map name into a valid Choice ``option_*`` identifier."""
+    cleaned = name.lower().replace(",", "").replace(".", "").replace("'", "")
+    return "option_" + "_".join(cleaned.split())
+
 ITEMS = {
     "Interchange - Unlock": ItemClassification.progression,
     "Shinkansen - Unlock": ItemClassification.progression,
@@ -79,9 +85,29 @@ class StartingMaps(Range):
     range_end = 34
     default = 5
 
+class Goal(Choice):
+    """Victory condition:
+        Complete Maps: clear Target Week on the configured number of maps (Maps to Complete).
+        Goal Map: clear Target Week on a single chosen map (Goal Map below).
+    """
+    display_name = "Goal"
+    option_complete_maps = 0
+    option_goal_map = 1
+    default = 0
+
+
+GoalMap = type(Choice)("GoalMap", (Choice,), {
+    "__doc__": "The map whose Target Week must be cleared to win when Goal is set to "
+               "Goal Map. Ignored for the Complete Maps goal.",
+    "display_name": "Goal Map",
+    "default": MAPS["London"],
+    **{_map_option_name(_name): _id for _name, _id in MAPS.items()},
+})
+
 
 class MapsToComplete(Range):
-    """Number of maps to complete for victory"""
+    """Number of maps to complete for victory when Goal is set to Complete Maps.
+        Ignored when Goal is set to Goal Map."""
     display_name = "Maps to Complete"
     range_start = 1
     range_end = 34
@@ -89,7 +115,7 @@ class MapsToComplete(Range):
 
 
 class TargetWeek(Range):
-    """Target week level to complete"""
+    """Target week level to complete."""
     display_name = "Target Week"
     range_start = 3
     range_end = 10
@@ -157,6 +183,8 @@ class MiniMetroOptions(PerGameCommonOptions):
     trap_chance: TrapChance
     map_shard_mode: MapShardMode
     custom_shard_count: CustomShardCount
+    goal: Goal
+    goal_map: GoalMap
     death_link: DeathLink
 
 
@@ -328,19 +356,27 @@ class MiniMetroWorld(World):
                         location,
                         lambda state, count=required: state.has("Progressive Map Shard", self.player, count)
                     )
-        maps_to_beat = int(self.options.maps_to_complete.value)
         target_week = int(self.options.target_week.value)
-        victory_locations = []
+        goal_week = min(target_week, max_weeks)
         available_maps = self.starting_maps + self.unlockable_maps
-        for map_name in available_maps[:maps_to_beat]:
-            location_name = f"{map_name} - Week {target_week}"
-            if location_name in self.location_name_to_id:
-                victory_locations.append(location_name)
-        if victory_locations:
-            self.multiworld.completion_condition[self.player] = lambda state: sum(
-                1 for loc in victory_locations
-                if state.can_reach_location(loc, self.player)
-            ) >= maps_to_beat
+        if int(self.options.goal.value) == 1:
+            goal_map = _MAP_ID_TO_NAME[int(self.options.goal_map.value)]
+            goal_location = f"{goal_map} - Week {goal_week}"
+            if goal_location in self.location_name_to_id:
+                self.multiworld.completion_condition[self.player] = \
+                    lambda state, loc=goal_location: state.can_reach_location(loc, self.player)
+        else:
+            maps_to_beat = int(self.options.maps_to_complete.value)
+            victory_locations = []
+            for map_name in available_maps[:maps_to_beat]:
+                location_name = f"{map_name} - Week {goal_week}"
+                if location_name in self.location_name_to_id:
+                    victory_locations.append(location_name)
+            if victory_locations:
+                self.multiworld.completion_condition[self.player] = lambda state: sum(
+                    1 for loc in victory_locations
+                    if state.can_reach_location(loc, self.player)
+                ) >= maps_to_beat
     
     def fill_slot_data(self):
         """Return slot data"""
@@ -348,6 +384,8 @@ class MiniMetroWorld(World):
             "maps": MAPS,
             "starting_maps": self.starting_maps,
             "unlockable_maps": self.unlockable_maps,
+            "goal": int(self.options.goal.value),
+            "goal_map": _MAP_ID_TO_NAME[int(self.options.goal_map.value)],
             "maps_to_complete": int(self.options.maps_to_complete.value),
             "target_week": int(self.options.target_week.value),
             "max_weeks": int(self.options.max_weeks.value),

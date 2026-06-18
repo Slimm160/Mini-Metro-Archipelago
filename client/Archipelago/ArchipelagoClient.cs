@@ -179,10 +179,13 @@ public class ArchipelagoClient
             GameApi.Events.GameStarted -= OnGameStartedApplyUnlocks;
             GameApi.Events.GameStarted += OnGameStartedApplyUnlocks;
 
+            string goalDesc = ServerData.Goal == 1
+                ? $"final check {ServerData.GoalMap}@W{ServerData.TargetWeek}"
+                : $"{ServerData.MapsToComplete} maps@W{ServerData.TargetWeek}";
             Plugin.BepinLogger.LogInfo(
                 $"AP init: mode={mode}, starting={ServerData.StartingMaps.Count}, " +
                 $"unlockable={ServerData.UnlockableMaps.Count}, shards/map={ServerData.ShardsPerMap}, " +
-                $"goal={ServerData.MapsToComplete}@W{ServerData.TargetWeek}.");
+                $"goal={goalDesc}.");
         });
     }
 

@@ -104,15 +104,52 @@ public class LocationHandler : IDisposable
     }
 
     /// <summary>
-    /// Count distinct cities at-or-past TargetWeek; once we hit MapsToComplete, send
-    /// the goal packet. Iterates the local checked-list, not the server's snapshot,
-    /// since the server one isn't guaranteed up-to-date the instant we send a check.
+    /// Evaluate the active victory condition and, if met, send the goal packet.
+    /// Iterates the local checked-list, not the server's snapshot, since the server
+    /// one isn't guaranteed up-to-date the instant we send a check.
     /// </summary>
     private void CheckVictory()
     {
         if (victorySent) return;
 
-        int target = data.TargetWeek;
+        // The goal location only exists for weeks 1..MaxWeeks; mirror the apworld's clamp.
+        int target = Math.Min(data.TargetWeek, data.MaxWeeks);
+
+        if (data.Goal == 1)
+        {
+            CheckFinalCheckVictory(target);
+            return;
+        }
+
+        CheckCompleteMapsVictory(target);
+    }
+
+    /// <summary>Final Check goal: win the instant the chosen map's Target Week is checked.</summary>
+    private void CheckFinalCheckVictory(int target)
+    {
+        string goalMap = data.GoalMap;
+        if (string.IsNullOrEmpty(goalMap)) return;
+
+        string goalLoc = $"{goalMap} - Week {target}";
+        foreach (long id in data.CheckedLocations)
+        {
+            string name;
+            try { name = session.Locations.GetLocationNameFromId(id); }
+            catch { continue; }
+            if (name == goalLoc)
+            {
+                SendGoal($"Victory! Cleared {goalLoc}.");
+                return;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Complete Maps goal: count distinct cities at-or-past TargetWeek; once we hit
+    /// MapsToComplete, win.
+    /// </summary>
+    private void CheckCompleteMapsVictory(int target)
+    {
         int needed = data.MapsToComplete;
         if (needed <= 0) return;
 
@@ -134,6 +171,12 @@ public class LocationHandler : IDisposable
 
         if (citiesAtTarget.Count < needed) return;
 
+        SendGoal($"Victory! {citiesAtTarget.Count} cities cleared at Week {target}+ (goal: {needed}).");
+    }
+
+    /// <summary>Send the one-shot ClientGoal status update, latching <see cref="victorySent"/>.</summary>
+    private void SendGoal(string message)
+    {
         victorySent = true;
         try
         {
@@ -141,8 +184,7 @@ public class LocationHandler : IDisposable
             {
                 Status = ArchipelagoClientState.ClientGoal,
             });
-            Plugin.BepinLogger.LogMessage(
-                $"Victory! {citiesAtTarget.Count} cities cleared at Week {target}+ (goal: {needed}).");
+            Plugin.BepinLogger.LogMessage(message);
         }
         catch (Exception e)
         {

@@ -154,6 +154,51 @@ Mini Metro:
     random-high: 0 # random value weighted towards higher values
     random-range-1-10: 0 # random value between 1 and 10
 
+  goal:
+    # Victory condition:
+    # Complete Maps: clear Target Week on the configured number of maps (Maps to Complete).
+    # Goal Map: clear Target Week on a single chosen map (Goal Map below).
+    complete_maps: 50
+    goal_map: 0
+
+  goal_map:
+    # The map whose Target Week must be cleared to win when Goal is set to Goal Map.
+    # Ignored for the Complete Maps goal.
+    london: 50
+    paris: 0
+    new_york_city: 0
+    warsaw: 0
+    lisbon: 0
+    tokyo: 0
+    chicago: 0
+    budapest: 0
+    berlin: 0
+    melbourne: 0
+    hong_kong: 0
+    barcelona: 0
+    osaka: 0
+    stockholm: 0
+    saint_petersburg: 0
+    boston: 0
+    montreal: 0
+    san_francisco: 0
+    sao_paulo: 0
+    seoul: 0
+    santiago: 0
+    washington_dc: 0
+    tashkent: 0
+    singapore: 0
+    cairo: 0
+    istanbul: 0
+    shanghai: 0
+    guangzhou: 0
+    nanjing: 0
+    chongqing: 0
+    mumbai: 0
+    addis_ababa: 0
+    lagos: 0
+    auckland: 0
+
   death_link:
     # When you die, everyone who enabled death link dies. Of course, the reverse is true too.
     'false': 50

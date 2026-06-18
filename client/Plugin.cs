@@ -74,7 +74,7 @@ public class Plugin : BaseUnityPlugin
                 ArchipelagoClient.Connect();
             }
         }
-        // DevPanel.OnGUI();  // hidden — uncomment to surface the developer testing overlay
+        // DevPanel.OnGUI();
         GameApi.OnGUI();
     }
 }

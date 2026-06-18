@@ -43,6 +43,16 @@ public class ArchipelagoData
     public int MaxWeeks => GetInt("max_weeks", 9);
 
     /// <summary>
+    /// Victory condition: <c>0</c> = Complete Maps (clear <see cref="TargetWeek"/> on
+    /// <see cref="MapsToComplete"/> distinct cities), <c>1</c> = Final Check (clear
+    /// <see cref="TargetWeek"/> on the single <see cref="GoalMap"/>).
+    /// </summary>
+    public int Goal => GetInt("goal", 0);
+
+    /// <summary>Apworld display name of the map whose Target Week wins under the Final Check goal.</summary>
+    public string GoalMap => GetString("goal_map", "");
+
+    /// <summary>
     /// Game mode the apworld pinned this seed to ("classic" or "extreme"). The client maps
     /// this to a single <see cref="GameMode"/> below; only that mode is added to the
     /// <see cref="MapApi"/> unlock set on connect.
