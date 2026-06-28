@@ -4,22 +4,6 @@ using HarmonyLib;
 
 namespace client;
 
-/// <summary>
-/// Two-stage Harmony patching to dodge a font-init race:
-///
-///   Stage 1 (<see cref="ScheduleApply"/>): in <c>Plugin.Awake</c>, install ONLY a
-///   postfix on <c>FontDatabase</c>'s instance constructor. Touching NewAssetScreen
-///   (or any class whose static initializers read <c>FontDatabase.Helvetica*</c>)
-///   before that constructor runs captures null font references into the static
-///   <c>DeviceVariable&lt;Font&gt;</c> fields — once cached, the title label renders
-///   with a null font and the "Week N" header degrades to "ee".
-///
-///   Stage 2 (<see cref="Apply"/>): the postfix fires after FontDatabase's ctor
-///   completes (Main.Begin builds it during the game's own Awake), at which point
-///   all <c>Helvetica*</c> font fields are non-null. Now it's safe to patch
-///   NewAssetScreen and friends, since the static initializers will capture real
-///   fonts.
-/// </summary>
 public static class Patcher
 {
     private static Harmony _harmony;
@@ -81,6 +65,11 @@ public static class Patcher
             typeof(SuppressApi.Game_SubmitScore_Patch),
             typeof(SuppressApi.Profile_CompleteAchievement_Patch),
             typeof(SuppressApi.Profile_SaveToCloud_Patch),
+            typeof(MenuUi.MenuUiPatches.HomeScreen_Ctor_Patch),
+            typeof(MenuUi.MenuUiPatches.Menu_Update_Patch),
+            typeof(MenuUi.MenuUiPatches.Menu_SetOption_Patch),
+            typeof(MenuUi.MenuUiPatches.HomeScreen_RepositionButtons_Patch),
+            typeof(MenuUi.MenuUiPatches.HomeScreen_HandleThemeChanged_Patch),
         };
 
         int applied = 0;

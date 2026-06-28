@@ -126,6 +126,15 @@ public class ArchipelagoClient
     }
 
     /// <summary>
+    /// Public entry point for a user-initiated disconnect (e.g. the native menu panel's
+    /// Disconnect button). Wraps the private <see cref="Disconnect"/> cleanup.
+    /// </summary>
+    public void DisconnectFromServer() => Disconnect();
+
+    /// <summary>True while a connection attempt is in flight (used by the menu UI to show progress).</summary>
+    public bool IsConnecting => attemptingConnection;
+
+    /// <summary>
     /// something went wrong, or we need to properly disconnect from the server. cleanup and re null our session
     /// </summary>
     private void Disconnect()

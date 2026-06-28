@@ -18,6 +18,13 @@ public class Plugin : BaseUnityPlugin
     public static ManualLogSource BepinLogger;
     public static ArchipelagoClient ArchipelagoClient;
 
+    /// <summary>
+    /// Hidden dev fallback. The native main-menu connection panel (see <c>client.MenuUi</c>) is
+    /// the primary UI; flip this to re-enable the legacy IMGUI connect box if the native panel
+    /// ever fails to render (e.g. an unexpected resolution/locale).
+    /// </summary>
+    public static bool ShowLegacyConnectUI;
+
     private void Awake()
     {
         BepinLogger = Logger;
@@ -41,6 +48,15 @@ public class Plugin : BaseUnityPlugin
             return;
         GUI.Label(new Rect(16, 16, 300, 20), ModDisplayInfo);
         ArchipelagoConsole.OnGUI();
+
+        // The native main-menu panel (client.MenuUi) is the primary connection UI; the IMGUI box
+        // below is a hidden dev fallback.
+        if (!ShowLegacyConnectUI)
+        {
+            GameApi.OnGUI();
+            return;
+        }
+
         string statusMessage;
         // show the Archipelago Version and whether we're connected or not
         if (ArchipelagoClient.Authenticated)

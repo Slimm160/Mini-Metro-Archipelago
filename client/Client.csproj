@@ -52,6 +52,11 @@
     </ItemGroup>
 
     <ItemGroup>
+        <!-- Ship custom menu art (PNGs) next to client.dll → BepInEx/plugins/client/assets/ -->
+        <None Include="assets\**" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
+
+    <ItemGroup>
         <PackageReference Include="Archipelago.MultiClient.Net" Version="6.7.0" />
         <PackageReference Include="BepInEx.Analyzers" Version="1.*" PrivateAssets="all" />
         <PackageReference Include="BepInEx.Core" Version="5.*" />
