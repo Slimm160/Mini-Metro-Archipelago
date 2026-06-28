@@ -113,6 +113,13 @@ class MapsToComplete(Range):
     range_end = 34
     default = 20
 
+class NumberOfMaps(Range):
+    """Number of maps to include in the world."""
+    display_name = "Number of Maps"
+    range_start = 1
+    range_end = 34
+    default = 34
+
 
 class TargetWeek(Range):
     """Target week level to complete."""
@@ -177,6 +184,7 @@ class MiniMetroOptions(PerGameCommonOptions):
     """Options for Mini Metro world"""
     starting_maps: StartingMaps
     maps_to_complete: MapsToComplete
+    number_of_maps: NumberOfMaps
     target_week: TargetWeek
     max_weeks: MaxWeeks
     game_mode: GameMode
@@ -210,6 +218,7 @@ class MiniMetroWorld(World):
         super().__init__(multiworld, player)
         self.starting_maps: List[str] = []
         self.unlockable_maps: List[str] = []
+        self.number_of_maps: int = len(MAPS)
         self.map_regions = {}
 
     @classmethod
@@ -219,9 +228,11 @@ class MiniMetroWorld(World):
 
     def generate_early(self):
         """Early generation step"""
-        num_starting = min(int(self.options.starting_maps.value), len(MAPS))
+        self.number_of_maps = min(int(self.options.number_of_maps.value), len(MAPS))
         maps_list = list(MAPS.keys())
         self.random.shuffle(maps_list)
+        maps_list = maps_list[:self.number_of_maps]
+        num_starting = min(int(self.options.starting_maps.value), self.number_of_maps)
         self.starting_maps = maps_list[:num_starting]
         self.unlockable_maps = maps_list[num_starting:]
         self.multiworld.early_items[self.player]["Tunnel/Bridge - Unlock"] = 1
@@ -384,6 +395,7 @@ class MiniMetroWorld(World):
             "maps": MAPS,
             "starting_maps": self.starting_maps,
             "unlockable_maps": self.unlockable_maps,
+            "number_of_maps": self.number_of_maps,
             "goal": int(self.options.goal.value),
             "goal_map": _MAP_ID_TO_NAME[int(self.options.goal_map.value)],
             "maps_to_complete": int(self.options.maps_to_complete.value),

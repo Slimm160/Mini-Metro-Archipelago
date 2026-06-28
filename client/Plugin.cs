@@ -33,12 +33,47 @@ public class Plugin : BaseUnityPlugin
         Patcher.ScheduleApply();
         DevPanel.Awake();
 
+        // See OnQuitting — clean shutdown to avoid the native crash on exit.
+        Application.quitting += OnQuitting;
+
         ArchipelagoConsole.LogMessage($"{ModDisplayInfo} loaded!");
     }
 
     private void Update()
     {
         MainThreadDispatcher.Drain();
+    }
+
+    private static bool _quitting;
+
+    /// <summary>
+    /// Clean shutdown to avoid the Unity crash reporter firing on exit.
+    ///
+    /// The Archipelago MultiClient keeps background <c>Task.Delay</c> loops alive (keepalive /
+    /// reconnect). When Mono unloads the app domain on exit it injects a <c>ThreadAbortException</c>
+    /// into those continuations, which crashes natively — this is the "Crash!!!" we see right after
+    /// "Input System polling thread exited". Disconnecting alone doesn't help (the timers persist
+    /// even after the socket drops). <see cref="Application.quitting"/> fires AFTER every
+    /// <c>OnApplicationQuit</c> save pass, so by here the game has already persisted its state; we
+    /// disconnect for tidiness and then terminate the process before the crashing teardown runs.
+    /// </summary>
+    private void OnQuitting()
+    {
+        if (_quitting) return;
+        _quitting = true;
+
+        try
+        {
+            if (ArchipelagoClient != null && Archipelago.ArchipelagoClient.Authenticated)
+                ArchipelagoClient.DisconnectFromServer();
+        }
+        catch (System.Exception e)
+        {
+            BepinLogger?.LogError($"Error during Archipelago shutdown: {e}");
+        }
+
+        try { System.Diagnostics.Process.GetCurrentProcess().Kill(); }
+        catch { /* nothing useful to do if even Kill fails */ }
     }
 
     private void OnGUI()

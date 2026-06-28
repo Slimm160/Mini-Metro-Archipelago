@@ -151,7 +151,7 @@ public class ArchipelagoMenuPanel
         statusLine2 = statusPanel.AddParagraph(new LocalizedString(locale, ""),
             FontDatabase.Helvetica18, TextJustification.Center, 2f, 8f);
         statusLine2.anchorX = 0.5f; statusLine2.x = PanelWidth * 0.5f;
-        statusPanel.AddWhitespace(18f);
+        statusPanel.AddWhitespace(60f); // push the Disconnect button further down
         var disconnectIcon = new Icon(theme, CardinalDirection.SOUTH, UI.Constants.PERSISTENT_WHITE, -1f, 1);
         var disconnect = statusPanel.AddButton(CustomStrings.Disconnect, ButtonFlags.MEDIUM, disconnectIcon,
             OnDisconnectClicked, 0.5f, KeyCode.None, 1);
