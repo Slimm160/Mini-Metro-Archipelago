@@ -78,6 +78,18 @@ TRAPS = [
     "Derailed",
 ]
 
+# Single source of truth for item name -> classification, used by create_item.
+# Generation builds the pool inline in create_items, but external callers
+# (Universal Tracker rebuilding received items, plots, etc.) need create_item,
+# which looks classifications up here.
+_ITEM_CLASSIFICATIONS = {
+    **ITEMS,
+    **HELPER_ITEMS,
+    "New Line - Unlock": ItemClassification.progression,
+    "Progressive Map Shard": ItemClassification.progression,
+    **{_trap: ItemClassification.trap for _trap in TRAPS},
+}
+
 class StartingMaps(Range):
     """Number of maps to start with unlocked"""
     display_name = "Starting Maps"
@@ -305,6 +317,13 @@ class MiniMetroWorld(World):
                 early_region.exits.append(late_entrance)
                 late_entrance.connect(late_region)
     
+    def create_item(self, name: str) -> MiniMetroItem:
+        """Create a single item by name. Required by external callers such as
+        Universal Tracker, which rebuilds each received item to seed logic state.
+        Unknown names fall back to filler so the tracker never crashes on them."""
+        classification = _ITEM_CLASSIFICATIONS.get(name, ItemClassification.filler)
+        return MiniMetroItem(name, classification, self.item_name_to_id[name], self.player)
+
     def create_items(self):
         """Create items for Mini Metro"""
         items_to_create = []        
