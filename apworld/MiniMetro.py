@@ -226,15 +226,40 @@ class MiniMetroWorld(World):
         """Assert that the world is valid before generation"""
         pass
 
+    def _ut_passthrough(self):
+        """Universal Tracker: the slot data UT handed back via interpret_slot_data,
+        or None during a normal generation. Present only while UT re-generates the
+        world to sync with a live seed."""
+        passthrough = getattr(self.multiworld, "re_gen_passthrough", None)
+        if isinstance(passthrough, dict):
+            return passthrough.get(self.game)
+        return None
+
+    def interpret_slot_data(self, slot_data: dict) -> dict:
+        """Universal Tracker hook. Returning the slot data (a truthy value) tells UT
+        to re-run generation with this dict exposed via
+        ``multiworld.re_gen_passthrough[self.game]`` so ``generate_early`` can restore
+        the exact randomized map split for this seed instead of re-shuffling."""
+        return slot_data
+
     def generate_early(self):
         """Early generation step"""
-        self.number_of_maps = min(int(self.options.number_of_maps.value), len(MAPS))
-        maps_list = list(MAPS.keys())
-        self.random.shuffle(maps_list)
-        maps_list = maps_list[:self.number_of_maps]
-        num_starting = min(int(self.options.starting_maps.value), self.number_of_maps)
-        self.starting_maps = maps_list[:num_starting]
-        self.unlockable_maps = maps_list[num_starting:]
+        # Under Universal Tracker, restore the randomized map split from slot data so
+        # tracker logic matches the real seed; re-shuffling here would pick a
+        # different set/order and mis-report which locations are in logic.
+        pt = self._ut_passthrough()
+        if pt:
+            self.number_of_maps = int(pt["number_of_maps"])
+            self.starting_maps = list(pt["starting_maps"])
+            self.unlockable_maps = list(pt["unlockable_maps"])
+        else:
+            self.number_of_maps = min(int(self.options.number_of_maps.value), len(MAPS))
+            maps_list = list(MAPS.keys())
+            self.random.shuffle(maps_list)
+            maps_list = maps_list[:self.number_of_maps]
+            num_starting = min(int(self.options.starting_maps.value), self.number_of_maps)
+            self.starting_maps = maps_list[:num_starting]
+            self.unlockable_maps = maps_list[num_starting:]
         self.multiworld.early_items[self.player]["Tunnel/Bridge - Unlock"] = 1
 
     def resolved_shards_per_map(self) -> int:
