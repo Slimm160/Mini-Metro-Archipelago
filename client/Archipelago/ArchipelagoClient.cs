@@ -262,6 +262,11 @@ public class ArchipelagoClient
         // scratch. Without this, reconnecting in the same process keeps the old
         // cursor and the suppressed replay leaves the counters at 0.
         ServerData.Index = 0;
+        // Drop cached slot data so the next connect re-requests it. Otherwise the
+        // reconnect logs in with requestSlotData: false and SetupSession overwrites
+        // the good slot data with an empty one, emptying StartingMaps/UnlockableMaps
+        // and locking every map (see ArchipelagoData.ClearSession).
+        ServerData.ClearSession();
         MainThreadDispatcher.Enqueue(() =>
         {
             MapApi.State.IsActive = false;

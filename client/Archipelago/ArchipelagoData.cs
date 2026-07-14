@@ -111,6 +111,20 @@ public class ArchipelagoData
     }
 
     /// <summary>
+    /// Drop the cached slot data so the next connect re-requests it. Without this a
+    /// reconnect in the same process leaves <see cref="NeedSlotData"/> false, so the
+    /// client logs in with <c>requestSlotData: false</c> and <see cref="SetupSession"/>
+    /// then overwrites the good data with the login result's empty SlotData —
+    /// emptying <see cref="StartingMaps"/>/<see cref="UnlockableMaps"/> and locking
+    /// every map. Call this on disconnect/teardown.
+    /// </summary>
+    public void ClearSession()
+    {
+        slotData = null;
+        seed = null;
+    }
+
+    /// <summary>
     /// returns the object as a json string to be written to a file which you can then load
     /// </summary>
     /// <returns></returns>
