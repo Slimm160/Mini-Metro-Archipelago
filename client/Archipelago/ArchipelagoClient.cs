@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using Archipelago.MultiClient.Net;
@@ -6,6 +7,7 @@ using Archipelago.MultiClient.Net.BounceFeatures.DeathLink;
 using Archipelago.MultiClient.Net.Enums;
 using Archipelago.MultiClient.Net.Helpers;
 using Archipelago.MultiClient.Net.MessageLog.Messages;
+using Archipelago.MultiClient.Net.Models;
 using Archipelago.MultiClient.Net.Packets;
 using client.Utils;
 
@@ -25,6 +27,14 @@ public class ArchipelagoClient
     private DeathLinkHandler DeathLinkHandler;
     private LocationHandler LocationHandler;
     private ArchipelagoSession session;
+
+    // Items arrive on the socket thread, but ApplyInitialState (which resets the
+    // shard counter and map set) runs later on the main thread. Buffer items until
+    // that reset has happened, otherwise the replay is applied and then wiped —
+    // relocking every shard-unlocked map on reconnect.
+    private readonly object itemLock = new();
+    private readonly List<ItemInfo> pendingItems = new();
+    private bool initialStateApplied;
 
     /// <summary>
     /// call to connect to an Archipelago session. Connection info should already be set up on ServerData
@@ -52,11 +62,26 @@ public class ArchipelagoClient
     /// </summary>
     private void SetupSession()
     {
-        session.MessageLog.OnMessageReceived += message => ArchipelagoConsole.LogMessage(message.ToString());
+        session.MessageLog.OnMessageReceived += OnMessageReceived;
         session.Items.ItemReceived += OnItemReceived;
         session.Socket.ErrorReceived += OnSessionErrorReceived;
         session.Socket.SocketClosed += OnSessionSocketClosed;
     }
+
+    /// <summary>
+    /// Detach our handlers from a session we're abandoning, so its late SocketClosed /
+    /// ItemReceived events can't tear down or corrupt the next session's state.
+    /// </summary>
+    private void TearDownSession()
+    {
+        if (session == null) return;
+        session.MessageLog.OnMessageReceived -= OnMessageReceived;
+        session.Items.ItemReceived -= OnItemReceived;
+        session.Socket.ErrorReceived -= OnSessionErrorReceived;
+        session.Socket.SocketClosed -= OnSessionSocketClosed;
+    }
+
+    private static void OnMessageReceived(LogMessage message) => ArchipelagoConsole.LogMessage(message.ToString());
 
     /// <summary>
     /// attempt to connect to the server with our connection info
@@ -144,6 +169,7 @@ public class ArchipelagoClient
         DeathLinkHandler = null;
         LocationHandler?.Dispose();
         LocationHandler = null;
+        TearDownSession();
         session?.Socket.DisconnectAsync();
         session = null;
         Authenticated = false;
@@ -180,6 +206,17 @@ public class ArchipelagoClient
                 MapApi.Grant.Unlock(internalId, mode);
             }
             MapApi.State.IsActive = true;
+
+            // Now that the reset is done, replay any items that arrived before it,
+            // then let later items flow straight to the main-thread queue.
+            List<ItemInfo> buffered;
+            lock (itemLock)
+            {
+                initialStateApplied = true;
+                buffered = new List<ItemInfo>(pendingItems);
+                pendingItems.Clear();
+            }
+            foreach (var item in buffered) ItemHandler.Handle(item);
 
             // Hook GameStarted so we re-apply the picker filter and strip locked
             // starting inventory on every map open — SetGame clears AllowedPicks
@@ -267,6 +304,11 @@ public class ArchipelagoClient
         // the good slot data with an empty one, emptying StartingMaps/UnlockableMaps
         // and locking every map (see ArchipelagoData.ClearSession).
         ServerData.ClearSession();
+        lock (itemLock)
+        {
+            initialStateApplied = false;
+            pendingItems.Clear();
+        }
         MainThreadDispatcher.Enqueue(() =>
         {
             MapApi.State.IsActive = false;
@@ -294,7 +336,15 @@ public class ArchipelagoClient
 
         ServerData.Index++;
 
-        ItemHandler.Handle(receivedItem);
+        lock (itemLock)
+        {
+            if (!initialStateApplied)
+            {
+                pendingItems.Add(receivedItem);
+                return;
+            }
+        }
+        MainThreadDispatcher.Enqueue(() => ItemHandler.Handle(receivedItem));
     }
 
     /// <summary>

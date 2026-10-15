@@ -2,7 +2,7 @@
 Mini Metro World for Archipelago
 """
 
-from typing import List
+from typing import List, Optional
 from dataclasses import dataclass
 import json
 import pkgutil
@@ -78,10 +78,6 @@ TRAPS = [
     "Derailed",
 ]
 
-# Single source of truth for item name -> classification, used by create_item.
-# Generation builds the pool inline in create_items, but external callers
-# (Universal Tracker rebuilding received items, plots, etc.) need create_item,
-# which looks classifications up here.
 _ITEM_CLASSIFICATIONS = {
     **ITEMS,
     **HELPER_ITEMS,
@@ -89,6 +85,10 @@ _ITEM_CLASSIFICATIONS = {
     "Progressive Map Shard": ItemClassification.progression,
     **{_trap: ItemClassification.trap for _trap in TRAPS},
 }
+
+UNLOCK_COPIES = 3
+NEW_LINE_COPIES = 6
+FIXED_ITEM_COUNT = len(ITEMS) * UNLOCK_COPIES + NEW_LINE_COPIES
 
 class StartingMaps(Range):
     """Number of maps to start with unlocked"""
@@ -231,6 +231,7 @@ class MiniMetroWorld(World):
         self.starting_maps: List[str] = []
         self.unlockable_maps: List[str] = []
         self.number_of_maps: int = len(MAPS)
+        self.shards_per_map: int = 1
         self.map_regions = {}
 
     @classmethod
@@ -272,15 +273,27 @@ class MiniMetroWorld(World):
             num_starting = min(int(self.options.starting_maps.value), self.number_of_maps)
             self.starting_maps = maps_list[:num_starting]
             self.unlockable_maps = maps_list[num_starting:]
+        self.shards_per_map = self._resolve_shards_per_map(pt)
         self.multiworld.early_items[self.player]["Tunnel/Bridge - Unlock"] = 1
 
-    def resolved_shards_per_map(self) -> int:
-        """determines the shard count based on the selected mode."""
+    def _resolve_shards_per_map(self, pt: Optional[dict]) -> int:
+        """Shards needed per unlockable map, from Map Shard Count Mode."""
+        if pt and "shards_per_map" in pt:
+            return max(int(pt["shards_per_map"]), 1)
         mw = int(self.options.max_weeks.value)
-        if int(self.options.map_shard_mode.value) == 1:
-            return min(int(self.options.custom_shard_count.value), mw - 1)
-        return max(mw - 1 if mw < 5 else mw - 2, 1)
-    
+        if self.options.map_shard_mode.value == MapShardMode.option_custom:
+            requested = int(self.options.custom_shard_count.value)
+        else:
+            requested = max(mw - 1 if mw < 5 else mw - 2, 1)
+        unlockable = len(self.unlockable_maps)
+        if unlockable == 0:
+            return requested
+        total_locations = (len(self.starting_maps) + unlockable) * mw
+        cap = max((total_locations - FIXED_ITEM_COUNT) // unlockable, 1)
+        if requested > cap:
+            return cap
+        return requested
+
     def create_regions(self):
         """Create regions for Mini Metro - early/late split per available map"""
         menu_region = Region("Menu", self.player, self.multiworld)
@@ -327,7 +340,7 @@ class MiniMetroWorld(World):
     def create_items(self):
         """Create items for Mini Metro"""
         items_to_create = []        
-        for _ in range(3):
+        for _ in range(UNLOCK_COPIES):
             for item_name, classification in ITEMS.items():
                 items_to_create.append(MiniMetroItem(
                     item_name,
@@ -335,7 +348,7 @@ class MiniMetroWorld(World):
                     self.item_name_to_id[item_name],
                     self.player
                 ))   
-        for _ in range(6):
+        for _ in range(NEW_LINE_COPIES):
             items_to_create.append(MiniMetroItem(
                 "New Line - Unlock",
                 ItemClassification.progression,
@@ -343,8 +356,7 @@ class MiniMetroWorld(World):
                 self.player
             ))    
         max_weeks = int(self.options.max_weeks.value)
-        shards_per_map = self.resolved_shards_per_map()
-        progressive_shard_count = len(self.unlockable_maps) * shards_per_map
+        progressive_shard_count = len(self.unlockable_maps) * self.shards_per_map
         for _ in range(progressive_shard_count):
             items_to_create.append(MiniMetroItem(
                 "Progressive Map Shard",
@@ -400,17 +412,12 @@ class MiniMetroWorld(World):
                         self.multiworld.get_location(curr_location, self.player),
                         lambda state, prev_loc=prev_location: state.can_reach_location(prev_loc, self.player)
                     )        
-        shards_per_map = self.resolved_shards_per_map()
         for idx, map_name in enumerate(self.unlockable_maps):
-            required = (idx + 1) * shards_per_map
-            for week in range(1, max_weeks + 1):
-                location_name = f"{map_name} - Week {week}"
-                if location_name in self.location_name_to_id:
-                    location = self.multiworld.get_location(location_name, self.player)
-                    set_rule(
-                        location,
-                        lambda state, count=required: state.has("Progressive Map Shard", self.player, count)
-                    )
+            required = (idx + 1) * self.shards_per_map
+            set_rule(
+                self.multiworld.get_entrance(f"Access {map_name}", self.player),
+                lambda state, count=required: state.has("Progressive Map Shard", self.player, count)
+            )
         target_week = int(self.options.target_week.value)
         goal_week = min(target_week, max_weeks)
         available_maps = self.starting_maps + self.unlockable_maps
@@ -446,6 +453,6 @@ class MiniMetroWorld(World):
             "target_week": int(self.options.target_week.value),
             "max_weeks": int(self.options.max_weeks.value),
             "game_mode": "extreme" if int(self.options.game_mode.value) == 1 else "classic",
-            "shards_per_map": self.resolved_shards_per_map(),
+            "shards_per_map": self.shards_per_map,
             "death_link": bool(self.options.death_link.value),
         }
