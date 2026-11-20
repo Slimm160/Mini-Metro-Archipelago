@@ -28,14 +28,23 @@ public static class ArchipelagoConsole
     private static Rect CommandTextRect;
     private static Rect SendCommandButton;
 
+    private static int mainThreadId;
+
     public static void Awake()
     {
+        mainThreadId = System.Threading.Thread.CurrentThread.ManagedThreadId;
         UpdateWindow();
     }
 
     public static void LogMessage(string message)
     {
         if (message.IsNullOrWhiteSpace()) return;
+
+        if (System.Threading.Thread.CurrentThread.ManagedThreadId != mainThreadId)
+        {
+            MainThreadDispatcher.Enqueue(() => LogMessage(message));
+            return;
+        }
 
         if (logLines.Count == MaxLogLines)
         {

@@ -38,7 +38,8 @@ public class DeathLinkHandler : IDisposable
     {
         service.OnDeathLinkReceived -= DeathLinkReceived;
         GameApi.Events.GameEnded -= OnGameEnded;
-        if (deathLinkEnabled) service.DisableDeathLink();
+        try { if (deathLinkEnabled) service.DisableDeathLink(); }
+        catch (Exception e) { Plugin.BepinLogger.LogDebug($"DisableDeathLink on dead socket: {e.Message}"); }
     }
 
     /// <summary>Toggle death-link participation at runtime.</summary>
@@ -65,16 +66,21 @@ public class DeathLinkHandler : IDisposable
     }
 
     /// <summary>
-    /// Local run ended — broadcast a death only if this was an actual game-over
-    /// (<see cref="Game.IsOver"/>), not a quit-to-menu. <c>GameEnded</c> fires from
-    /// <c>ClearGame</c>, which also runs when the player exits voluntarily, so
-    /// without this gate every quit would send a deathlink. Also suppressed when
-    /// the local end was itself caused by an incoming deathlink (echo guard).
+    /// Local run ended — broadcast a death only if this was an actual overcrowding
+    /// game-over, not a quit-to-menu. <c>GameEnded</c> fires from <c>ClearGame</c>,
+    /// which also runs when the player exits voluntarily. <see cref="Game.IsOver"/> can't
+    /// tell the two apart: <c>Game.OnExitToMenu</c>, Restart and Exit to Desktop all set
+    /// it too. <see cref="Game.OvercrowdedStation"/> is only set by the overflow
+    /// game-over (and by <see cref="GameApi.Take.EndGame"/>, which mimics it), and the
+    /// game clears it again if the run is continued. Also suppressed when the local end
+    /// was itself caused by an incoming deathlink (echo guard).
     /// </summary>
     private void OnGameEnded(Game game)
     {
-        if (suppressNextOutgoing) { suppressNextOutgoing = false; return; }
-        if (game == null || !game.IsOver) return;
+        bool suppressed = suppressNextOutgoing;
+        suppressNextOutgoing = false;
+        if (suppressed) return;
+        if (game?.OvercrowdedStation == null) return;
         SendDeathLink();
     }
 

@@ -88,6 +88,7 @@ _ITEM_CLASSIFICATIONS = {
 
 UNLOCK_COPIES = 3
 NEW_LINE_COPIES = 6
+LATE_NEW_LINES_REQUIRED = 2
 FIXED_ITEM_COUNT = len(ITEMS) * UNLOCK_COPIES + NEW_LINE_COPIES
 
 class StartingMaps(Range):
@@ -402,6 +403,8 @@ class MiniMetroWorld(World):
                 set_rule(
                     self.multiworld.get_entrance(f"Access {map_name} - Late", self.player),
                     lambda state, loc=gate_location: state.can_reach_location(loc, self.player)
+                    and state.has("New Line - Unlock", self.player, LATE_NEW_LINES_REQUIRED)
+                    and state.has("Tunnel/Bridge - Unlock", self.player)
                 )
         for map_name in available_maps:
             for week in range(2, max_weeks + 1):

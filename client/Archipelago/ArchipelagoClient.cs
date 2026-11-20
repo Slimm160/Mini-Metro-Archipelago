@@ -21,7 +21,8 @@ public class ArchipelagoClient
     private const string Game = "Mini Metro";
 
     public static bool Authenticated;
-    private bool attemptingConnection;
+    // Set on the main thread, cleared on the ThreadPool login thread.
+    private volatile bool attemptingConnection;
 
     public static ArchipelagoData ServerData = new();
     private DeathLinkHandler DeathLinkHandler;
@@ -43,15 +44,23 @@ public class ArchipelagoClient
     public void Connect()
     {
         if (Authenticated || attemptingConnection) return;
+        // Block re-entry until HandleConnectResult runs. Without this a double-click
+        // opens two sessions whose item replays race on ServerData.Index, and the
+        // second ApplyInitialState wipes the first's shard-unlocked maps.
+        attemptingConnection = true;
 
         try
         {
+            // Detach any leftover session so its late events can't reach this one.
+            TearDownSession();
             session = ArchipelagoSessionFactory.CreateSession(ServerData.Uri);
             SetupSession();
         }
         catch (Exception e)
         {
             Plugin.BepinLogger.LogError(e);
+            attemptingConnection = false;
+            return;
         }
 
         TryConnect();
@@ -170,7 +179,8 @@ public class ArchipelagoClient
         LocationHandler?.Dispose();
         LocationHandler = null;
         TearDownSession();
-        session?.Socket.DisconnectAsync();
+        try { session?.Socket.DisconnectAsync(); }
+        catch (Exception e) { Plugin.BepinLogger.LogDebug($"DisconnectAsync on dead socket: {e.Message}"); }
         session = null;
         Authenticated = false;
         TearDownState();
@@ -294,11 +304,6 @@ public class ArchipelagoClient
     private void TearDownState()
     {
         GameApi.Events.GameStarted -= OnGameStartedApplyUnlocks;
-        // Drop the item-stream cursor so the next connect replays every item from
-        // index 0 and rebuilds UnlockState/LineUnlockCount/ProgressiveShardCount from
-        // scratch. Without this, reconnecting in the same process keeps the old
-        // cursor and the suppressed replay leaves the counters at 0.
-        ServerData.Index = 0;
         // Drop cached slot data so the next connect re-requests it. Otherwise the
         // reconnect logs in with requestSlotData: false and SetupSession overwrites
         // the good slot data with an empty one, emptying StartingMaps/UnlockableMaps
@@ -306,6 +311,11 @@ public class ArchipelagoClient
         ServerData.ClearSession();
         lock (itemLock)
         {
+            // Drop the item-stream cursor so the next connect replays every item from
+            // index 0 and rebuilds UnlockState/LineUnlockCount/ProgressiveShardCount from
+            // scratch. Without this, reconnecting in the same process keeps the old
+            // cursor and the suppressed replay leaves the counters at 0.
+            ServerData.Index = 0;
             initialStateApplied = false;
             pendingItems.Clear();
         }
@@ -332,12 +342,12 @@ public class ArchipelagoClient
     {
         var receivedItem = helper.DequeueItem();
 
-        if (helper.Index <= ServerData.Index) return;
-
-        ServerData.Index++;
-
+        // Cursor check, increment and buffering share itemLock with TearDownState's
+        // cursor reset, so a disconnect can't interleave with a replay in progress.
         lock (itemLock)
         {
+            if (helper.Index <= ServerData.Index) return;
+            ServerData.Index++;
             if (!initialStateApplied)
             {
                 pendingItems.Add(receivedItem);
@@ -356,15 +366,29 @@ public class ArchipelagoClient
     {
         Plugin.BepinLogger.LogError(e);
         ArchipelagoConsole.LogMessage(message);
+        var erroredSession = session;
+        if (erroredSession != null && !erroredSession.Socket.Connected)
+            HandleConnectionLost(erroredSession, message);
     }
 
     /// <summary>
     /// something went wrong closing our connection. disconnect and clean up
     /// </summary>
     /// <param name="reason"></param>
-    private void OnSessionSocketClosed(string reason)
+    private void OnSessionSocketClosed(string reason) => HandleConnectionLost(session, reason);
+
+    /// <summary>
+    /// Socket callbacks arrive on MultiClient's background threads, but teardown touches
+    /// game events and Unity state, so marshal it to the main thread. The session check
+    /// makes a burst of error/close callbacks (or a stale one after reconnecting) a no-op.
+    /// </summary>
+    private void HandleConnectionLost(ArchipelagoSession lostSession, string reason)
     {
-        Plugin.BepinLogger.LogError($"Connection to Archipelago lost: {reason}");
-        Disconnect();
+        MainThreadDispatcher.Enqueue(() =>
+        {
+            if (lostSession == null || lostSession != session) return;
+            ArchipelagoConsole.LogMessage($"Connection to Archipelago lost: {reason} Reconnect from the main menu.");
+            Disconnect();
+        });
     }
 }
